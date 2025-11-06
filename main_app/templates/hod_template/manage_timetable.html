@@ -1,0 +1,98 @@
+{% extends "main_app/base.html" %}
+{% load static %}
+
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Add Room</h3></div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              {{ room_form.non_field_errors }}
+              <div class="form-group">{{ room_form.name.label_tag }} {{ room_form.name }}</div>
+              <div class="form-group">{{ room_form.capacity.label_tag }} {{ room_form.capacity }}</div>
+              <button type="submit" class="btn btn-primary">Save Room</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Add Timetable Entry</h3></div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              {{ entry_form.non_field_errors }}
+              <div class="form-group">{{ entry_form.session.label_tag }} {{ entry_form.session }}</div>
+              <div class="form-group">{{ entry_form.course.label_tag }} {{ entry_form.course }}</div>
+              <div class="form-group">{{ entry_form.subject.label_tag }} {{ entry_form.subject }}</div>
+              <div class="form-group">{{ entry_form.staff.label_tag }} {{ entry_form.staff }}</div>
+              <div class="form-group">{{ entry_form.room.label_tag }} {{ entry_form.room }}</div>
+              <div class="form-group">{{ entry_form.day.label_tag }} {{ entry_form.day }}</div>
+              <div class="form-group">{{ entry_form.period_number.label_tag }} {{ entry_form.period_number }}</div>
+              <button type="submit" class="btn btn-success">Create Entry</button>
+            </form>
+            <p class="text-muted mt-2">Note: Conflicts are prevented across staff, rooms, and course groups per session/day/period.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Auto Generate Timetable Entries</h3></div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="auto_generate" value="1" />
+              <button type="submit" class="btn btn-warning">Auto Generate for All</button>
+            </form>
+            <p class="text-muted mt-2">Generates entries for all subjects in the latest session up to each subject's weekly credits, avoiding staff/room/course clashes across Mon–Fri, periods 1–6.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card card-outline card-dark">
+          <div class="card-header"><h3 class="card-title">Existing Entries</h3></div>
+          <div class="card-body table-responsive p-0">
+            <table class="table table-hover text-nowrap">
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Day</th>
+                  <th>Period</th>
+                  <th>Course</th>
+                  <th>Subject</th>
+                  <th>Staff</th>
+                  <th>Room</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for e in entries %}
+                <tr>
+                  <td>{{ e.session }}</td>
+                  <td>{{ e.get_day_display }}</td>
+                  <td>{{ e.period_number }}</td>
+                  <td>{{ e.course }}</td>
+                  <td>{{ e.subject }}</td>
+                  <td>{{ e.staff }}</td>
+                  <td>{{ e.room }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="text-center text-muted">No entries yet</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock content %}

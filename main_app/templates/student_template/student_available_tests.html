@@ -1,0 +1,43 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">Available MCQ Tests</h3>
+                    </div>
+                    <div class="table p-2">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Subject</th>
+                                <th>Teacher</th>
+                                <th>Actions</th>
+                            </tr>
+                            {% for t in tests %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ t.title }}</td>
+                                <td>{{ t.subject.name }}</td>
+                                <td>{{ t.staff.admin.get_full_name }}</td>
+                                <td>
+                                    <a href="{% url 'student_take_test' t.id %}" class="btn btn-sm btn-dark">Take Test</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5">No tests available.</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

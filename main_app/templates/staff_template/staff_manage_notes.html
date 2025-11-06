@@ -1,0 +1,49 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">Upload Notes</h3>
+                    </div>
+                    {% include "main_app/form_template.html" with messages=messages form=form button_text="Upload" %}
+                </div>
+
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">My Notes</h3>
+                    </div>
+                    <div class="table p-2">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Subject</th>
+                                <th>File</th>
+                                <th>Uploaded</th>
+                            </tr>
+                            {% for n in notes %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ n.title }}</td>
+                                <td>{{ n.subject.name }}</td>
+                                <td><a href="{{ n.file.url }}" target="_blank">Download</a></td>
+                                <td>{{ n.created_at }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5">No notes uploaded yet.</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    </section>
+{% endblock content %}

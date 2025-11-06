@@ -1,0 +1,66 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">Subject Notes</h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="get">
+                            <div class="form-group">
+                                <label for="subject">Filter by Subject</label>
+                                <select name="subject" id="subject" class="form-control">
+                                    <option value="">All</option>
+                                    {% for s in subjects %}
+                                        <option value="{{ s.id }}" {% if selected_subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-dark">Apply</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">Available Notes</h3>
+                    </div>
+                    <div class="table p-2">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Subject</th>
+                                <th>Teacher</th>
+                                <th>File</th>
+                                <th>Uploaded</th>
+                            </tr>
+                            {% for n in notes %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ n.title }}</td>
+                                <td>{{ n.subject.name }}</td>
+                                <td>{{ n.staff.admin.get_full_name }}</td>
+                                <td><a href="{{ n.file.url }}" target="_blank">Download</a></td>
+                                <td>{{ n.created_at }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6">No notes available.</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

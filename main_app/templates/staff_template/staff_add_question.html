@@ -1,0 +1,51 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">{{ test.title }} - {{ test.subject.name }}</h3>
+                    </div>
+                    {% include "main_app/form_template.html" with messages=messages form=form button_text="Add Question" %}
+                </div>
+
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">Existing Questions</h3>
+                    </div>
+                    <div class="table p-2">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>#</th>
+                                <th>Question</th>
+                                <th>Options</th>
+                            </tr>
+                            {% for q in questions %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ q.text }}</td>
+                                <td>
+                                    <ul>
+                                        {% for o in q.options.all %}
+                                            <li>{{ o.text }} {% if o.is_correct %}<span class="badge badge-success">Correct</span>{% endif %}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3">No questions yet.</td></tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

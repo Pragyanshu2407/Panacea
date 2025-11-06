@@ -1,0 +1,40 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+{% block page_title %}{{page_title}}{% endblock page_title %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card card-dark">
+                    <div class="card-header">
+                        <h3 class="card-title">{{ test.title }} - {{ test.subject.name }}</h3>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="card-body">
+                            {% for q in questions %}
+                                <div class="form-group">
+                                    <label><strong>Q{{ forloop.counter }}. {{ q.text }}</strong></label>
+                                    {% for o in q.options.all %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="q_{{ q.id }}" id="q{{ q.id }}_o{{ o.id }}" value="{{ o.id }}">
+                                            <label class="form-check-label" for="q{{ q.id }}_o{{ o.id }}">{{ o.text }}</label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% empty %}
+                                <p>No questions added to this test yet.</p>
+                            {% endfor %}
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-success">Submit Answers</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}

@@ -1,0 +1,40 @@
+{% extends "main_app/base.html" %}
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="card card-dark">
+      <div class="card-header"><h3 class="card-title">Weekly Timetable</h3></div>
+      <div class="card-body table-responsive p-0">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Day \ Period</th>
+              <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d, row in day_rows %}
+            <tr>
+              <td><strong>{{ d }}</strong></td>
+              {% for p in row %}
+                <td>
+                  {% if p %}
+                    <div><strong>{{ p.subject.name }}</strong></div>
+                    <div>{{ p.course.name }}</div>
+                    <div>Room: {{ p.room.name }}</div>
+                    <div>Session: {{ p.session }}</div>
+                  {% else %}
+                    <span class="text-muted">Free</span>
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock content %}
