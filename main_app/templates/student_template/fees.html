@@ -1,0 +1,73 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-5">
+        <div class="card card-primary">
+          <div class="card-header"><h3 class="card-title">Submit Fee</h3></div>
+          <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="form-group">
+                <label>Session</label>
+                {{ form.session }}
+              </div>
+              <div class="form-group">
+                <label>Amount</label>
+                {{ form.amount }}
+              </div>
+              <div class="form-group">
+                <label>Receipt</label>
+                {{ form.receipt }}
+              </div>
+              <button class="btn btn-primary" type="submit">Submit</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="card card-info">
+          <div class="card-header"><h3 class="card-title">My Fee Submissions</h3></div>
+          <div class="card-body">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Reviewed By</th>
+                  <th>Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in fees %}
+                <tr>
+                  <td>{{ f.session }}</td>
+                  <td>{{ f.amount }}</td>
+                  <td>
+                    {% if f.status == 'pending' %}
+                      <span class="badge badge-warning">Pending</span>
+                    {% elif f.status == 'approved' %}
+                      <span class="badge badge-success">Approved</span>
+                    {% else %}
+                      <span class="badge badge-danger">Rejected</span>
+                    {% endif %}
+                  </td>
+                  <td>{% if f.reviewed_by %}{{ f.reviewed_by }}{% else %}-{% endif %}</td>
+                  <td><a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary">View</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No submissions yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

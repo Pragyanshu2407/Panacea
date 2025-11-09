@@ -1,0 +1,83 @@
+{% extends 'main_app/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-info">
+          <div class="card-header"><h3 class="card-title">My Proctored Students</h3></div>
+          <div class="card-body">
+            <ul class="list-group">
+              {% for a in assignments %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  {{ a.student }}
+                  <span class="badge badge-success">Active</span>
+                </li>
+              {% empty %}
+                <li class="list-group-item">No students assigned.</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-primary">
+          <div class="card-header"><h3 class="card-title">Fee Submissions</h3></div>
+          <div class="card-body">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Session</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in fees %}
+                <tr>
+                  <td>{{ f.student }}</td>
+                  <td>{{ f.session }}</td>
+                  <td>{{ f.amount }}</td>
+                  <td>
+                    {% if f.status == 'pending' %}
+                      <span class="badge badge-warning">Pending</span>
+                    {% elif f.status == 'approved' %}
+                      <span class="badge badge-success">Approved</span>
+                    {% else %}
+                      <span class="badge badge-danger">Rejected</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if f.status == 'pending' %}
+                      <form method="post" action="{% url 'staff_review_fee' f.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="approve" />
+                        <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                      </form>
+                      <form method="post" action="{% url 'staff_review_fee' f.id %}" class="d-inline ml-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="reject" />
+                        <button class="btn btn-sm btn-danger" type="submit">Reject</button>
+                      </form>
+                      <a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary ml-2">View Receipt</a>
+                    {% else %}
+                      <a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary">View Receipt</a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No fee submissions.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

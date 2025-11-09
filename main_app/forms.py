@@ -225,10 +225,176 @@ class TimetableEntryForm(forms.ModelForm):
             "room",
             "day",
             "period_number",
+            "is_lab",
+            "duration_periods",
         ]
         widgets = {
             "period_number": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
+            "is_lab": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "duration_periods": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
         }
+
+class ExtraClassRequestForm(forms.ModelForm):
+    class Meta:
+        model = models.ExtraClassRequest
+        fields = [
+            "subject",
+            "course",
+            "session",
+            "preferred_day",
+            "preferred_period",
+            "duration_periods",
+            "is_lab",
+            "reason",
+        ]
+        widgets = {
+            "preferred_period": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
+            "duration_periods": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
+            "is_lab": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "reason": forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+        }
+
+    def __init__(self, *args, staff=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit subjects to those taught by requesting staff (if provided)
+        if staff is not None:
+            self.fields["subject"].queryset = models.Subject.objects.filter(staff=staff)
+        for field in self.fields.values():
+            css = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = (css + " form-control").strip()
+
+class StaffUnavailabilityForm(forms.ModelForm):
+    class Meta:
+        model = models.StaffUnavailability
+        fields = [
+            "session",
+            "day",
+            "period_number",
+            "duration_periods",
+            "reason_code",
+            "reason",
+            "recurring_weekly",
+            "repeat_until",
+            "exception_date",
+        ]
+        widgets = {
+            "period_number": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
+            "duration_periods": forms.NumberInput(attrs={"min": 1, "max": 6, "class": "form-control"}),
+            "reason": forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+            "repeat_until": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "exception_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+
+class ExtraClassScheduleForm(forms.ModelForm):
+    # Ensure browser "datetime-local" input parses correctly
+    start_datetime = forms.DateTimeField(
+        widget=forms.DateTimeInput(
+            attrs={
+                "type": "datetime-local",
+                "class": "form-control datetimepicker-input",
+                "data-target": "#datetimepicker1",
+            },
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"],
+        required=True,
+    )
+    class Meta:
+        model = models.ExtraClassSchedule
+        fields = [
+            "session",
+            "course",
+            "subject",
+            "room",
+            "start_datetime",
+            "duration_minutes",
+            "notes",
+        ]
+        widgets = {
+            "duration_minutes": forms.NumberInput(attrs={"min": 15, "step": 15, "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+        }
+
+
+class AdminExtraClassScheduleForm(forms.ModelForm):
+    staff = forms.ModelChoiceField(queryset=models.Staff.objects.all(), required=True, label="Teacher")
+    # Match the parsing behavior for admin as well
+    start_datetime = forms.DateTimeField(
+        widget=forms.DateTimeInput(
+            attrs={
+                "type": "datetime-local",
+                "class": "form-control datetimepicker-input",
+                "data-target": "#datetimepicker1",
+            },
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"],
+        required=True,
+    )
+
+    class Meta:
+        model = models.ExtraClassSchedule
+        fields = [
+            "staff",
+            "session",
+            "course",
+            "subject",
+            "room",
+            "start_datetime",
+            "duration_minutes",
+            "notes",
+        ]
+        widgets = {
+            "duration_minutes": forms.NumberInput(attrs={"min": 15, "step": 15, "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure consistent styling
+        for field in self.fields.values():
+            css = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = (css + " form-control").strip()
+
+        # Dynamically restrict course/subject based on chosen staff
+        staff_obj = None
+        # Prefer bound data, fall back to initial
+        staff_id = None
+        if self.data.get("staff"):
+            try:
+                staff_id = int(self.data.get("staff"))
+            except (TypeError, ValueError):
+                staff_id = None
+        if staff_id is None and self.initial.get("staff"):
+            try:
+                staff_id = int(self.initial.get("staff"))
+            except (TypeError, ValueError):
+                staff_id = None
+
+        if staff_id:
+            try:
+                staff_obj = models.Staff.objects.get(id=staff_id)
+            except models.Staff.DoesNotExist:
+                staff_obj = None
+
+        if staff_obj is not None:
+            self.fields["subject"].queryset = models.Subject.objects.filter(staff=staff_obj)
+            if staff_obj.course_id:
+                self.fields["course"].queryset = models.Course.objects.filter(id=staff_obj.course_id)
+
+
+# Proctor and Fee Payment forms
+class ProctorAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = models.ProctorAssignment
+        fields = ["proctor", "student", "active"]
+
+
+class FeePaymentForm(forms.ModelForm):
+    class Meta:
+        model = models.FeePayment
+        fields = ["session", "amount", "receipt"]
 
 
 # Auto-generate timetable form

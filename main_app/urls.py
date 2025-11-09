@@ -57,6 +57,13 @@ urlpatterns = [
          name='get_admin_attendance'),
     path("admin/timetable/manage/", hod_views.manage_timetable,
          name='manage_timetable'),
+    path("admin/extra/requests/", hod_views.manage_extra_requests, name='manage_extra_requests'),
+    path("admin/extra/requests/<int:request_id>/status/", hod_views.update_extra_request_status, name='update_extra_request_status'),
+    path("admin/extra/schedule/", hod_views.admin_schedule_extra_class, name='admin_schedule_extra_class'),
+    path("admin/extra/classes/", hod_views.extra_classes_dashboard, name='extra_classes_dashboard'),
+    path("admin/extra/classes/<int:schedule_id>/status/", hod_views.update_extra_class_status, name='update_extra_class_status'),
+    path("admin/unavailability/", hod_views.view_staff_unavailability, name='view_staff_unavailability'),
+    path("admin/proctors/manage/", hod_views.manage_proctors, name='manage_proctors'),
     path("student/add/", hod_views.add_student, name='add_student'),
     path("subject/add/", hod_views.add_subject, name='add_subject'),
     path("staff/manage/", hod_views.manage_staff, name='manage_staff'),
@@ -122,6 +129,16 @@ urlpatterns = [
     path('staff/result/fetch/', staff_views.fetch_student_result,
          name='fetch_student_result'),
     path("staff/timetable/", staff_views.staff_timetable, name='staff_timetable'),
+    path("staff/proctor/dashboard/", staff_views.proctor_dashboard, name='proctor_dashboard'),
+    path("staff/fees/review/<int:fee_id>/", staff_views.staff_review_fee, name='staff_review_fee'),
+
+    # Extra classes & unavailability
+    path("staff/unavailability/", staff_views.staff_mark_unavailability, name='staff_mark_unavailability'),
+    path("staff/extra/schedule/", staff_views.staff_schedule_extra_class, name='staff_schedule_extra_class'),
+    path("staff/extra/request/", staff_views.staff_extra_class_request, name='staff_extra_class_request'),
+    path("staff/extra/slots/", staff_views.staff_available_extra_slots, name='staff_available_extra_slots'),
+    path("staff/extra/slots/<int:slot_id>/claim/", staff_views.staff_claim_extra_slot, name='staff_claim_extra_slot'),
+    path("staff/extra/classes/", staff_views.staff_course_extra_classes, name='staff_extra_classes_course'),
 
 
 
@@ -150,5 +167,7 @@ urlpatterns = [
     path('student/view/result/', student_views.student_view_result,
          name='student_view_result'),
     path("student/timetable/", student_views.student_timetable, name='student_timetable'),
+    path("student/extra/classes/", student_views.student_extra_classes, name='student_extra_classes'),
+    path("student/fees/", student_views.student_fees, name='student_fees'),
 
 ]

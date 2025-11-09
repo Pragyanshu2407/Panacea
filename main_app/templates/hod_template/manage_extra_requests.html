@@ -1,0 +1,50 @@
+{% extends "main_app/base.html" %}
+{% block content %}
+<h4>{{ page_title }}</h4>
+<div class="mb-2">
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}">All</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}?status=requested">Requested</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}?status=approved">Approved</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}?status=rejected">Rejected</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}?status=scheduled">Scheduled</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'manage_extra_requests' %}?status=cancelled">Cancelled</a>
+</div>
+{% if messages %}
+  <div class="mt-2">{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+{% endif %}
+<table class="table table-sm">
+  <thead><tr><th>Staff</th><th>Subject</th><th>Course</th><th>Session</th><th>Preferred</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for r in requests %}
+    <tr>
+      <td>{{ r.staff }}</td>
+      <td>{{ r.subject }}</td>
+      <td>{{ r.course }}</td>
+      <td>{{ r.session }}</td>
+      <td>{% if r.preferred_day %}{{ r.preferred_day }} P{{ r.preferred_period }}{% else %}-{% endif %}</td>
+      <td>{{ r.duration_periods }}</td>
+      <td>{{ r.get_status_display }}</td>
+      <td>
+        <form method="post" action="{% url 'update_extra_request_status' r.id %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="approve" />
+          <button class="btn btn-success btn-sm" {% if r.status != 'requested' %}disabled{% endif %}>Approve</button>
+        </form>
+        <form method="post" action="{% url 'update_extra_request_status' r.id %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reject" />
+          <button class="btn btn-danger btn-sm" {% if r.status != 'requested' %}disabled{% endif %}>Reject</button>
+        </form>
+        <form method="post" action="{% url 'update_extra_request_status' r.id %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="cancel" />
+          <button class="btn btn-warning btn-sm" {% if r.status not in 'approved scheduled' %}disabled{% endif %}>Cancel</button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" class="text-muted">No requests.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

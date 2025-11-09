@@ -9,6 +9,9 @@ from django.templatetags.static import static
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import UpdateView
+from django.db.models import Q
+from django.db import transaction
+from django.utils import timezone
 
 from .forms import *
 from .models import *
@@ -84,6 +87,29 @@ def admin_home(request):
 
     }
     return render(request, 'hod_template/home_content.html', context)
+
+
+def manage_proctors(request):
+    form = ProctorAssignmentForm(request.POST or None)
+    assignments = ProctorAssignment.objects.select_related("proctor", "student").all()
+    context = {
+        "page_title": "Manage Proctors",
+        "form": form,
+        "assignments": assignments,
+    }
+    if request.method == "POST":
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.clean()
+                obj.save()
+                messages.success(request, "Proctor assigned successfully")
+                return redirect(reverse("manage_proctors"))
+            except Exception as e:
+                messages.error(request, f"Could not assign proctor: {e}")
+        else:
+            messages.error(request, "Please correct the errors below")
+    return render(request, "hod_template/manage_proctors.html", context)
 
 
 def add_staff(request):
@@ -276,10 +302,9 @@ def edit_staff(request, staff_id):
             except Exception as e:
                 messages.error(request, "Could Not Update " + str(e))
         else:
-            messages.error(request, "Please fil form properly")
+                messages.error(request, "Please fil form properly")
     else:
-        user = CustomUser.objects.get(id=staff_id)
-        staff = Staff.objects.get(id=user.id)
+        # Staff instance already loaded via get_object_or_404; simply render the form
         return render(request, "hod_template/edit_staff_template.html", context)
 
 
@@ -567,95 +592,26 @@ def manage_timetable(request):
             else:
                 messages.error(request, "Please fix timetable form errors")
         elif request.POST.get("auto_generate"):
-            # One-click auto-generate for all subjects/staff/courses in latest session
-            from django.db import transaction
-
+            # One-click auto-generate using scheduling heuristic
             session = Session.objects.order_by('-end_year').first()
             if session is None:
                 messages.error(request, "No session found. Please create a session first.")
                 return redirect("manage_timetable")
 
-            rooms = list(Room.objects.all())
-            if not rooms:
-                messages.error(request, "No rooms available. Please add a room first.")
-                return redirect("manage_timetable")
+            from .scheduling import generate_for_session
 
-            days = [choice[0] for choice in TimetableEntry._meta.get_field("day").choices]
-
-            total_created = 0
-            total_skipped = 0
-            subjects = Subject.objects.select_related("course", "staff").all()
-
-            for subject in subjects:
-                course = subject.course
-                staff = subject.staff
-                credits = getattr(subject, "credits", 0) or 0
-
-                # If no credits defined, skip to avoid unlimited scheduling
-                if credits <= 0:
-                    continue
-
-                existing = TimetableEntry.objects.filter(
-                    session=session, subject=subject
-                ).count()
-                remaining = max(0, credits - existing)
-                if remaining == 0:
-                    continue
-
-                created_for_subject = 0
-                for day in days:
-                    for period in range(1, 7):
-                        if created_for_subject >= remaining:
-                            break
-
-                        # Skip if staff or course is busy at this slot
-                        if TimetableEntry.objects.filter(session=session, day=day, period_number=period, staff=staff).exists():
-                            total_skipped += 1
-                            continue
-                        if TimetableEntry.objects.filter(session=session, day=day, period_number=period, course=course).exists():
-                            total_skipped += 1
-                            continue
-
-                        # Find an available room for this slot
-                        chosen_room = None
-                        for room in rooms:
-                            if not TimetableEntry.objects.filter(session=session, day=day, period_number=period, room=room).exists():
-                                chosen_room = room
-                                break
-
-                        if chosen_room is None:
-                            total_skipped += 1
-                            continue
-
-                        entry = TimetableEntry(
-                            session=session,
-                            course=course,
-                            subject=subject,
-                            staff=staff,
-                            room=chosen_room,
-                            day=day,
-                            period_number=period,
-                        )
-
-                        try:
-                            with transaction.atomic():
-                                entry.full_clean()
-                                entry.save()
-                                created_for_subject += 1
-                                total_created += 1
-                        except Exception:
-                            total_skipped += 1
-                            continue
-
-                    if created_for_subject >= remaining:
-                        break
-
-            if total_created > 0:
-                messages.success(request, f"Auto-generated {total_created} timetable entr{'y' if total_created == 1 else 'ies'} across all subjects.")
+            summary = generate_for_session(session)
+            created = summary.get("created", 0)
+            skipped = summary.get("skipped", 0)
+            errors = summary.get("errors", [])
+            if created > 0:
+                messages.success(request, f"Auto-generated {created} timetable entr{'y' if created == 1 else 'ies'} across all subjects.")
             else:
                 messages.warning(request, "No entries generated. Ensure subjects have credits and free slots exist.")
-            if total_skipped > 0:
-                messages.info(request, f"Skipped {total_skipped} slot{'s' if total_skipped != 1 else ''} due to conflicts or validation.")
+            if skipped > 0:
+                messages.info(request, f"Skipped {skipped} slot{'s' if skipped != 1 else ''} due to conflicts or validation.")
+            if errors:
+                messages.warning(request, f"{len(errors)} validation issues encountered during generation.")
             return redirect("manage_timetable")
 
     entries = TimetableEntry.objects.select_related("session", "course", "subject", "staff", "room").order_by(
@@ -669,6 +625,280 @@ def manage_timetable(request):
         "entries": entries,
     }
     return render(request, "hod_template/manage_timetable.html", context)
+
+
+def manage_extra_requests(request):
+    page_title = "Manage Extra Class Requests"
+    # Filter and sort
+    status = request.GET.get("status")
+    qs = ExtraClassRequest.objects.select_related("staff", "subject", "course", "session").order_by("-created_at")
+    if status in {"requested", "approved", "scheduled", "rejected", "cancelled"}:
+        qs = qs.filter(status=status)
+    context = {
+        "page_title": page_title,
+        "requests": qs,
+        "status": status or "all",
+    }
+    return render(request, "hod_template/manage_extra_requests.html", context)
+
+
+@csrf_exempt
+def update_extra_request_status(request, request_id: int):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    action = request.POST.get("action")
+    req = get_object_or_404(ExtraClassRequest, id=request_id)
+    valid = {"approve": "approved", "reject": "rejected", "cancel": "cancelled"}
+    if action not in valid:
+        messages.error(request, "Invalid action")
+        return redirect(reverse("manage_extra_requests"))
+    new_status = valid[action]
+    req.status = new_status
+    req.save()
+    # Notify staff
+    note = f"Your extra class request for {req.subject} ({req.session}) is {new_status}."
+    NotificationStaff.objects.create(staff=req.staff, message=note)
+    TimetableAuditLog.objects.create(
+        actor=request.user,
+        action="extra_request",
+        details=f"{new_status} {req.subject} by {req.staff}"
+    )
+    messages.success(request, f"Request {new_status}.")
+    return redirect(reverse("manage_extra_requests"))
+
+
+def extra_classes_dashboard(request):
+    page_title = "Extra Classes Dashboard"
+    status = request.GET.get("status")
+    schedules = ExtraClassSchedule.objects.select_related("staff", "subject", "course").order_by("-start_datetime")
+    if status in {"requested", "approved", "rejected", "scheduled", "cancelled"}:
+        schedules = schedules.filter(status=status)
+
+    # Aggregate unavailability counts per staff for display/color coding
+    unavailability = StaffUnavailability.objects.values("staff_id").annotate(count=models.Count("id"))
+    unavail_map = {u["staff_id"]: u["count"] for u in unavailability}
+    # Attach count to each schedule for template access
+    for s in schedules:
+        s.unavail_count = unavail_map.get(s.staff_id, 0)
+
+    context = {
+        "page_title": page_title,
+        "schedules": schedules,
+        "status": status or "all",
+        "unavail_map": unavail_map,
+    }
+    return render(request, "hod_template/extra_classes_dashboard.html", context)
+
+
+def view_staff_unavailability(request):
+    """List all staff unavailability entries for admins/HOD with basic filtering."""
+    page_title = "Staff Unavailability"
+    # Optional filters
+    course_id = request.GET.get("course_id")
+    staff_id = request.GET.get("staff_id")
+    session_id = request.GET.get("session_id")
+    day = request.GET.get("day")
+
+    qs = StaffUnavailability.objects.select_related("staff", "session").order_by("-created_at")
+    if course_id:
+        qs = qs.filter(staff__course_id=course_id)
+    if staff_id:
+        qs = qs.filter(staff_id=staff_id)
+    if session_id:
+        qs = qs.filter(session_id=session_id)
+    if day:
+        qs = qs.filter(day=day)
+
+    context = {
+        "page_title": page_title,
+        "entries": qs,
+        "courses": Course.objects.all(),
+        "staffs": Staff.objects.all(),
+        "sessions": Session.objects.all(),
+        "selected": {
+            "course_id": course_id or "",
+            "staff_id": staff_id or "",
+            "session_id": session_id or "",
+            "day": day or "",
+        },
+    }
+    return render(request, "hod_template/staff_unavailability.html", context)
+
+
+def admin_schedule_extra_class(request):
+    page_title = "Schedule Extra Class (Admin)"
+    form = AdminExtraClassScheduleForm(request.POST or None)
+    recent = ExtraClassSchedule.objects.select_related("staff", "subject", "course").order_by("-start_datetime")[:25]
+    context = {
+        "page_title": page_title,
+        "form": form,
+        "recent": recent,
+    }
+
+    if request.method == "POST" and form.is_valid():
+        sched = form.save(commit=False)
+        sched.requires_hod_approval = False
+        sched.status = "scheduled"
+        try:
+            with transaction.atomic():
+                sched.full_clean()
+                sched.save()
+                # Notify the assigned staff
+                NotificationStaff.objects.create(
+                    staff=sched.staff,
+                    message=f"Extra class scheduled: {sched.subject} on {sched.start_datetime}"
+                )
+                # Broadcast to all staff in the course
+                try:
+                    course_staff = Staff.objects.filter(course=sched.course).exclude(id=sched.staff_id)
+                    msg_staff = f"Extra class scheduled for {sched.course.name}: {sched.subject.name} on {sched.start_datetime}"
+                    for s in course_staff:
+                        NotificationStaff.objects.create(staff=s, message=msg_staff)
+                except Exception:
+                    pass
+                # Notify students in the course
+                try:
+                    students = Student.objects.filter(course=sched.course)
+                    msg_student = f"Extra class scheduled: {sched.subject.name} on {sched.start_datetime}"
+                    for stu in students:
+                        NotificationStudent.objects.create(student=stu, message=msg_student)
+                except Exception:
+                    pass
+                TimetableAuditLog.objects.create(
+                    actor=request.user,
+                    action="schedule_extra",
+                    details=f"Admin scheduled {sched.subject} for {sched.staff} on {sched.start_datetime}"
+                )
+                # Create a TimetableEntry so it appears in staff/student timetables
+                try:
+                    # Map datetime to weekday and period
+                    from datetime import time, timedelta
+                    dow_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+                    weekday = dow_map.get(sched.start_datetime.weekday())
+                    period_ranges = [
+                        (time(9, 0), time(10, 0)),
+                        (time(10, 0), time(11, 0)),
+                        (time(11, 0), time(12, 0)),
+                        (time(12, 0), time(13, 0)),
+                        (time(13, 0), time(14, 0)),
+                        (time(14, 0), time(15, 0)),
+                    ]
+                    st = sched.start_datetime.time()
+                    period_number = None
+                    for idx, (ps, pe) in enumerate(period_ranges, start=1):
+                        if ps <= st < pe:
+                            period_number = idx
+                            break
+                    duration_periods = max(1, int(round(sched.duration_minutes / 60)))
+                    if sched.room and weekday in [c[0] for c in TimetableEntry.DAY_CHOICES] and period_number:
+                        entry = TimetableEntry(
+                            session=sched.session,
+                            course=sched.course,
+                            subject=sched.subject,
+                            staff=sched.staff,
+                            room=sched.room,
+                            day=weekday,
+                            period_number=period_number,
+                            is_lab=False,
+                            duration_periods=duration_periods,
+                        )
+                        entry.clean()
+                        entry.save()
+                    else:
+                        messages.info(request, "Timetable not updated: ensure room is set and time falls within 9-15.")
+                except Exception:
+                    # Non-fatal; schedule remains recorded and visible on extra classes pages
+                    pass
+                messages.success(request, "Extra class scheduled successfully.")
+                return redirect(reverse("admin_schedule_extra_class"))
+        except Exception:
+            messages.error(request, "Failed to schedule extra class. Please review form errors.")
+
+    return render(request, "hod_template/extra_class_schedule_admin.html", context)
+
+
+@csrf_exempt
+def update_extra_class_status(request, schedule_id: int):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    action = request.POST.get("action")
+    sched = get_object_or_404(ExtraClassSchedule, id=schedule_id)
+    valid = {"approve": "approved", "reject": "rejected", "cancel": "cancelled"}
+    if action not in valid:
+        messages.error(request, "Invalid action")
+        return redirect(reverse("extra_classes_dashboard"))
+    new_status = valid[action]
+    sched.status = new_status
+    sched.save()
+    # Notify requesting staff
+    note = f"Your extra class for {sched.subject} on {sched.start_datetime} is {new_status}."
+    NotificationStaff.objects.create(staff=sched.staff, message=note)
+    # If scheduled or cancelled, notify course teachers and students
+    try:
+        if new_status in ["scheduled", "approved"]:
+            # Teachers in course
+            others = Staff.objects.filter(course=sched.course).exclude(id=sched.staff_id)
+            msg_staff = f"Extra class {new_status}: {sched.subject.name} on {sched.start_datetime}"
+            for s in others:
+                NotificationStaff.objects.create(staff=s, message=msg_staff)
+        if new_status == "scheduled":
+            students = Student.objects.filter(course=sched.course)
+            msg_student = f"Extra class scheduled: {sched.subject.name} on {sched.start_datetime}"
+            for stu in students:
+                NotificationStudent.objects.create(student=stu, message=msg_student)
+        if new_status == "cancelled":
+            students = Student.objects.filter(course=sched.course)
+            msg_student = f"Extra class cancelled: {sched.subject.name} on {sched.start_datetime}"
+            for stu in students:
+                NotificationStudent.objects.create(student=stu, message=msg_student)
+    except Exception:
+        pass
+    TimetableAuditLog.objects.create(
+        actor=request.user,
+        action="extra_schedule_status",
+        details=f"{new_status} {sched.subject} by {sched.staff}"
+    )
+    messages.success(request, f"Extra class {new_status}.")
+    # If scheduled, add to weekly timetable
+    try:
+        if new_status == "scheduled":
+            from datetime import time, timedelta
+            dow_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+            weekday = dow_map.get(sched.start_datetime.weekday())
+            period_ranges = [
+                (time(9, 0), time(10, 0)),
+                (time(10, 0), time(11, 0)),
+                (time(11, 0), time(12, 0)),
+                (time(12, 0), time(13, 0)),
+                (time(13, 0), time(14, 0)),
+                (time(14, 0), time(15, 0)),
+            ]
+            st = sched.start_datetime.time()
+            period_number = None
+            for idx, (ps, pe) in enumerate(period_ranges, start=1):
+                if ps <= st < pe:
+                    period_number = idx
+                    break
+            duration_periods = max(1, int(round(sched.duration_minutes / 60)))
+            if sched.room and weekday in [c[0] for c in TimetableEntry.DAY_CHOICES] and period_number:
+                entry = TimetableEntry(
+                    session=sched.session,
+                    course=sched.course,
+                    subject=sched.subject,
+                    staff=sched.staff,
+                    room=sched.room,
+                    day=weekday,
+                    period_number=period_number,
+                    is_lab=False,
+                    duration_periods=duration_periods,
+                )
+                entry.clean()
+                entry.save()
+            else:
+                messages.info(request, "Timetable not updated: set a room and a start time within 9-15.")
+    except Exception:
+        pass
+    return redirect(reverse("extra_classes_dashboard"))
 
 
 @csrf_exempt

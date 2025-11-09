@@ -1,0 +1,96 @@
+{% extends "main_app/base.html" %}
+{% load static %}
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Schedule Extra Class (Admin)</h3></div>
+          <div class="card-body">
+            {% if messages %}
+              <div class="mb-2">{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+            {% endif %}
+            <form method="post" novalidate>
+              {% csrf_token %}
+              {{ form.non_field_errors }}
+              <div class="form-group">
+                <label>Teacher</label>
+                {{ form.staff }}
+              </div>
+              <div class="form-group">
+                <label>Session</label>
+                {{ form.session }}
+              </div>
+              <div class="form-group">
+                <label>Course</label>
+                {{ form.course }}
+              </div>
+              <div class="form-group">
+                <label>Subject</label>
+                {{ form.subject }}
+              </div>
+              <div class="form-group">
+                <label>Room (optional)</label>
+                {{ form.room }}
+              </div>
+              <div class="form-group">
+                <label>Date & Time</label>
+                <div class="input-group date" id="datetimepicker1" data-target-input="nearest">
+                  {{ form.start_datetime }}
+                  <div class="input-group-append" data-target="#datetimepicker1" data-toggle="datetimepicker">
+                    <div class="input-group-text"><i class="fa fa-calendar"></i></div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Duration (minutes)</label>
+                {{ form.duration_minutes }}
+              </div>
+              <div class="form-group">
+                <label>Notes</label>
+                {{ form.notes }}
+              </div>
+              <button type="submit" class="btn btn-primary">Schedule</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-secondary">
+          <div class="card-header"><h3 class="card-title">Recent Extra Classes</h3></div>
+          <div class="card-body p-0">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Date/Time</th>
+                  <th>Teacher</th>
+                  <th>Course</th>
+                  <th>Subject</th>
+                  <th>Room</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in recent %}
+                  <tr>
+                    <td>{{ s.start_datetime }}</td>
+                    <td>{{ s.staff }}</td>
+                    <td>{{ s.course }}</td>
+                    <td>{{ s.subject }}</td>
+                    <td>{% if s.room %}{{ s.room }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td>{{ s.get_status_display }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="text-muted">No recent extra classes</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

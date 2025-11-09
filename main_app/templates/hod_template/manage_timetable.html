@@ -35,9 +35,15 @@
               <div class="form-group">{{ entry_form.room.label_tag }} {{ entry_form.room }}</div>
               <div class="form-group">{{ entry_form.day.label_tag }} {{ entry_form.day }}</div>
               <div class="form-group">{{ entry_form.period_number.label_tag }} {{ entry_form.period_number }}</div>
+              <div class="form-group">
+                <div class="form-check">
+                  {{ entry_form.is_lab }} {{ entry_form.is_lab.label_tag }}
+                </div>
+              </div>
+              <div class="form-group">{{ entry_form.duration_periods.label_tag }} {{ entry_form.duration_periods }}</div>
               <button type="submit" class="btn btn-success">Create Entry</button>
             </form>
-            <p class="text-muted mt-2">Note: Conflicts are prevented across staff, rooms, and course groups per session/day/period.</p>
+            <p class="text-muted mt-2">Note: Conflicts are prevented across staff, rooms, and course groups per session/day/period. Lab sessions must span two consecutive periods.</p>
           </div>
         </div>
       </div>
@@ -66,7 +72,7 @@
                 <tr>
                   <th>Session</th>
                   <th>Day</th>
-                  <th>Period</th>
+                  <th>Time</th>
                   <th>Course</th>
                   <th>Subject</th>
                   <th>Staff</th>
@@ -78,7 +84,7 @@
                 <tr>
                   <td>{{ e.session }}</td>
                   <td>{{ e.get_day_display }}</td>
-                  <td>{{ e.period_number }}</td>
+                  <td>{{ e.slot_label }}{% if e.is_lab %} <span class="badge badge-info">Lab</span>{% endif %}</td>
                   <td>{{ e.course }}</td>
                   <td>{{ e.subject }}</td>
                   <td>{{ e.staff }}</td>

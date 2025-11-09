@@ -59,14 +59,62 @@ def student_timetable(request):
     grid = {d: [None] * 6 for d in days}
     for e in entries:
         if 1 <= e.period_number <= 6:
-            grid[e.day][e.period_number - 1] = e
+            end_p = min(e.period_number + max(1, int(getattr(e, "duration_periods", 1))) - 1, 6)
+            for p in range(e.period_number, end_p + 1):
+                grid[e.day][p - 1] = e
     day_rows = [(d, grid[d]) for d in days]
     context = {
         "page_title": "My Timetable",
         "days": days,
         "day_rows": day_rows,
+        "slot_labels": ["9-10", "10-11", "11-12", "12-1", "1-2", "2-3"],
     }
     return render(request, "student_template/timetable.html", context)
+
+
+def student_extra_classes(request):
+    student = get_object_or_404(Student, admin=request.user)
+    schedules = (
+        ExtraClassSchedule.objects
+        .filter(course=student.course, status__in=["approved", "scheduled"])
+        .select_related("staff", "subject", "course", "room")
+        .order_by("-start_datetime")
+    )
+    context = {
+        "page_title": "Extra Classes",
+        "schedules": schedules,
+    }
+    return render(request, "student_template/extra_classes.html", context)
+
+
+def student_fees(request):
+    student = get_object_or_404(Student, admin=request.user)
+    # Limit sessions to student's session and set initial
+    form = FeePaymentForm(request.POST or None, request.FILES or None)
+    if request.method != "POST":
+        if "session" in form.fields:
+            form.fields["session"].queryset = Session.objects.filter(id=student.session_id)
+            form.initial["session"] = student.session
+    context = {
+        "page_title": "Fee Payment",
+        "form": form,
+        "fees": FeePayment.objects.filter(student=student).select_related("session"),
+    }
+    if request.method == "POST":
+        if form.is_valid():
+            try:
+                obj = form.save(commit=False)
+                obj.student = student
+                # Force session to student's session
+                obj.session = student.session
+                obj.save()
+                messages.success(request, "Fee submitted for review")
+                return redirect(reverse("student_fees"))
+            except Exception as e:
+                messages.error(request, f"Could not submit: {e}")
+        else:
+            messages.error(request, "Please correct the errors below")
+    return render(request, "student_template/fees.html", context)
 
 
 

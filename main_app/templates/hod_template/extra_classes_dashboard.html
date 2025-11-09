@@ -1,0 +1,82 @@
+{% extends "main_app/base.html" %}
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="card card-dark">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title">Extra Classes</h3>
+            <form method="get" class="form-inline">
+              <label class="mr-2">Status</label>
+              <select name="status" class="form-control mr-2">
+                <option value="all" {% if status == 'all' %}selected{% endif %}>All</option>
+                <option value="requested" {% if status == 'requested' %}selected{% endif %}>Requested</option>
+                <option value="approved" {% if status == 'approved' %}selected{% endif %}>Approved</option>
+                <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejected</option>
+                <option value="scheduled" {% if status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+                <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+              </select>
+              <button class="btn btn-dark" type="submit">Filter</button>
+            </form>
+          </div>
+          <div class="card-body table-responsive p-0">
+            <table class="table table-hover text-nowrap">
+              <thead>
+                <tr>
+                  <th>Date/Time</th>
+                  <th>Teacher</th>
+                  <th>Course</th>
+                  <th>Subject</th>
+                  <th>Room</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for s in schedules %}
+                <tr>
+                  <td>{{ s.start_datetime }}</td>
+                  <td>
+                    {{ s.staff }}
+                    {% if s.unavail_count %}
+                      <span class="badge badge-warning ml-1" title="Unavailability count">{{ s.unavail_count }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ s.course }}</td>
+                  <td>{{ s.subject }}</td>
+                  <td>{% if s.room %}{{ s.room }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                  <td>{{ s.duration_minutes }}m</td>
+                  <td>
+                    {% if s.status == 'approved' %}<span class="badge badge-success">Approved</span>
+                    {% elif s.status == 'rejected' %}<span class="badge badge-danger">Rejected</span>
+                    {% elif s.status == 'scheduled' %}<span class="badge badge-primary">Scheduled</span>
+                    {% elif s.status == 'cancelled' %}<span class="badge badge-secondary">Cancelled</span>
+                    {% else %}<span class="badge badge-warning">Requested</span>{% endif %}
+                  </td>
+                  
+                  <td>
+                    <form method="post" action="{% url 'update_extra_class_status' s.id %}" class="form-inline">
+                      {% csrf_token %}
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button name="action" value="approve" class="btn btn-success">Approve</button>
+                        <button name="action" value="reject" class="btn btn-danger">Reject</button>
+                        <button name="action" value="cancel" class="btn btn-secondary">Cancel</button>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="9" class="text-center text-muted">No extra classes</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock content %}

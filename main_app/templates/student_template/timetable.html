@@ -9,8 +9,10 @@
         <table class="table table-bordered">
           <thead>
             <tr>
-              <th>Day \ Period</th>
-              <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
+              <th>Day \\ Time</th>
+              {% for lbl in slot_labels %}
+                <th>{{ lbl }}</th>
+              {% endfor %}
             </tr>
           </thead>
           <tbody>
@@ -20,7 +22,12 @@
               {% for p in row %}
                 <td>
                   {% if p %}
-                    <div><strong>{{ p.subject.name }}</strong></div>
+                    <div>
+                      <strong>{{ p.subject.name }}</strong>
+                      {% if p.is_lab %}
+                        <span class="badge badge-info ml-1">Lab</span>
+                      {% endif %}
+                    </div>
                     <div>Staff: {{ p.staff.admin.first_name }} {{ p.staff.admin.last_name }}</div>
                     <div>Room: {{ p.room.name }}</div>
                   {% else %}

@@ -255,6 +255,42 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    {% url 'manage_extra_requests' as manage_extra_requests %}
+                    <a href="{{ manage_extra_requests }}" class="nav-link {% if manage_extra_requests == request.path %} active {% endif %}">
+                        <i class="nav-icon fas fa-list"></i>
+                        <p>Manage Extra Requests</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    {% url 'admin_schedule_extra_class' as admin_schedule_extra_class %}
+                    <a href="{{ admin_schedule_extra_class }}" class="nav-link {% if admin_schedule_extra_class == request.path %} active {% endif %}">
+                        <i class="nav-icon fas fa-plus"></i>
+                        <p>Schedule Extra Class</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    {% url 'extra_classes_dashboard' as extra_classes_dashboard %}
+                    <a href="{{ extra_classes_dashboard }}" class="nav-link {% if extra_classes_dashboard == request.path %} active {% endif %}">
+                        <i class="nav-icon fas fa-calendar"></i>
+                        <p>Extra Classes Dashboard</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    {% url 'view_staff_unavailability' as view_staff_unavailability %}
+                    <a href="{{ view_staff_unavailability }}" class="nav-link {% if view_staff_unavailability == request.path %} active {% endif %}">
+                        <i class="nav-icon fas fa-user-times"></i>
+                        <p>Staff Unavailability</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    {% url 'manage_proctors' as manage_proctors %}
+                    <a href="{{ manage_proctors }}"
+                        class="nav-link {% if manage_proctors == request.path %} active {% endif %}">
+                        <i class="nav-icon fas fa-user-shield"></i>
+                        <p>Manage Proctors</p>
+                    </a>
+                </li>
+                <li class="nav-item">
                     {% url 'student_feedback_message' as student_feedback_message %}
 
                     <a href="{{ student_feedback_message }}"
@@ -418,6 +454,41 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                {% url 'staff_mark_unavailability' as staff_mark_unavailability %}
+                                <a href="{{ staff_mark_unavailability }}" class="nav-link {% if staff_mark_unavailability == request.path %} active {% endif %}">
+                                    <i class="nav-icon fas fa-user-times"></i>
+                                    <p>Mark Unavailability</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                {% url 'staff_available_extra_slots' as staff_available_extra_slots %}
+                                <a href="{{ staff_available_extra_slots }}" class="nav-link {% if staff_available_extra_slots == request.path %} active {% endif %}">
+                                    <i class="nav-icon fas fa-calendar-check"></i>
+                                    <p>Available Extra Slots</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                {% url 'staff_schedule_extra_class' as staff_schedule_extra_class %}
+                                <a href="{{ staff_schedule_extra_class }}" class="nav-link {% if staff_schedule_extra_class == request.path %} active {% endif %}">
+                                    <i class="nav-icon fas fa-calendar-plus"></i>
+                                    <p>Schedule Extra Class</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                {% url 'staff_course_extra_classes' as staff_course_extra_classes %}
+                                <a href="{{ staff_course_extra_classes }}" class="nav-link {% if staff_course_extra_classes == request.path %} active {% endif %}">
+                                    <i class="nav-icon fas fa-calendar"></i>
+                                    <p>Course Extra Classes</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                {% url 'proctor_dashboard' as proctor_dashboard %}
+                                <a href="{{ proctor_dashboard }}" class="nav-link {% if proctor_dashboard == request.path %} active {% endif %}">
+                                    <i class="nav-icon fas fa-user-friends"></i>
+                                    <p>Proctor Dashboard</p>
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 {% url 'staff_view_notification' as staff_view_notification %}
                                 <a href="{{staff_view_notification}}"
                                     class="nav-link {% if staff_view_notification == request.path %} active {% endif %}">
@@ -529,6 +600,20 @@
                                             <a href="{{ student_timetable }}" class="nav-link {% if student_timetable == request.path %} active {% endif %}">
                                                 <i class="nav-icon fas fa-table"></i>
                                                 <p>View Timetable</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            {% url 'student_extra_classes' as student_extra_classes %}
+                                            <a href="{{ student_extra_classes }}" class="nav-link {% if student_extra_classes == request.path %} active {% endif %}">
+                                                <i class="nav-icon fas fa-calendar"></i>
+                                                <p>Extra Classes</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            {% url 'student_fees' as student_fees %}
+                                            <a href="{{ student_fees }}" class="nav-link {% if student_fees == request.path %} active {% endif %}">
+                                                <i class="nav-icon fas fa-receipt"></i>
+                                                <p>Pay Fees</p>
                                             </a>
                                         </li>
 

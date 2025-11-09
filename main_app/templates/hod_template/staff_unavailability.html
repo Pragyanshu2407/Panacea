@@ -1,0 +1,93 @@
+{% extends "main_app/base.html" %}
+{% block content %}
+<h4>{{ page_title }}</h4>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto">
+    <label class="form-label">Course</label>
+    <select name="course_id" class="form-control">
+      <option value="">All</option>
+      {% for c in courses %}
+        <option value="{{ c.id }}" {% if selected.course_id|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label">Staff</label>
+    <select name="staff_id" class="form-control">
+      <option value="">All</option>
+      {% for s in staffs %}
+        <option value="{{ s.id }}" {% if selected.staff_id|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>{{ s.admin.get_full_name }} ({{ s.course }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label">Session</label>
+    <select name="session_id" class="form-control">
+      <option value="">All</option>
+      {% for ss in sessions %}
+        <option value="{{ ss.id }}" {% if selected.session_id|stringformat:"s" == ss.id|stringformat:"s" %}selected{% endif %}>{{ ss }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label">Day</label>
+    <select name="day" class="form-control">
+      <option value="">All</option>
+      <option value="MON" {% if selected.day == 'MON' %}selected{% endif %}>Monday</option>
+      <option value="TUE" {% if selected.day == 'TUE' %}selected{% endif %}>Tuesday</option>
+      <option value="WED" {% if selected.day == 'WED' %}selected{% endif %}>Wednesday</option>
+      <option value="THU" {% if selected.day == 'THU' %}selected{% endif %}>Thursday</option>
+      <option value="FRI" {% if selected.day == 'FRI' %}selected{% endif %}>Friday</option>
+      <option value="SAT" {% if selected.day == 'SAT' %}selected{% endif %}>Saturday</option>
+    </select>
+  </div>
+  <div class="col-auto align-self-end">
+    <button type="submit" class="btn btn-primary">Filter</button>
+  </div>
+  <div class="col-auto align-self-end">
+    <a href="{% url 'view_staff_unavailability' %}" class="btn btn-secondary">Reset</a>
+  </div>
+  <div class="col-12">
+    <p class="text-muted mt-2">Newest entries first. Use filters to narrow down.</p>
+  </div>
+</form>
+
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Created</th>
+      <th>Staff</th>
+      <th>Course</th>
+      <th>Session</th>
+      <th>Day</th>
+      <th>Period</th>
+      <th>Duration</th>
+      <th>Reason Code</th>
+      <th>Reason</th>
+      <th>Recurring</th>
+      <th>Until</th>
+      <th>Exception Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in entries %}
+      <tr>
+        <td>{{ u.created_at }}</td>
+        <td>{{ u.staff.admin.get_full_name }}</td>
+        <td>{{ u.staff.course }}</td>
+        <td>{{ u.session }}</td>
+        <td>{{ u.day }}</td>
+        <td>{{ u.period_number }}</td>
+        <td>{{ u.duration_periods }}</td>
+        <td>{{ u.get_reason_code_display }}</td>
+        <td>{{ u.reason }}</td>
+        <td>{% if u.recurring_weekly %}Yes{% else %}No{% endif %}</td>
+        <td>{% if u.repeat_until %}{{ u.repeat_until }}{% else %}-{% endif %}</td>
+        <td>{% if u.exception_date %}{{ u.exception_date }}{% else %}-{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="12" class="text-muted">No unavailability entries.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

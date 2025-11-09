@@ -5,6 +5,9 @@ from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import (HttpResponseRedirect, get_object_or_404,redirect, render)
 from django.urls import reverse
+import logging
+from django.db import transaction
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .forms import *
@@ -49,15 +52,282 @@ def staff_timetable(request):
     grid = {d: [None] * 6 for d in days}
     for e in entries:
         if 1 <= e.period_number <= 6:
-            grid[e.day][e.period_number - 1] = e
+            end_p = min(e.period_number + max(1, int(getattr(e, "duration_periods", 1))) - 1, 6)
+            for p in range(e.period_number, end_p + 1):
+                grid[e.day][p - 1] = e
     # Build template-friendly rows as list of (day, row_entries)
     day_rows = [(d, grid[d]) for d in days]
     context = {
         "page_title": "My Timetable",
         "days": days,
         "day_rows": day_rows,
+        "slot_labels": ["9-10", "10-11", "11-12", "12-1", "1-2", "2-3"],
     }
     return render(request, "staff_template/timetable.html", context)
+
+
+logger = logging.getLogger(__name__)
+
+def staff_mark_unavailability(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    form = StaffUnavailabilityForm(request.POST or None)
+    context = {
+        "page_title": "Mark Unavailability",
+        "form": form,
+        "history": StaffUnavailability.objects.filter(staff=staff).order_by("-created_at"),
+    }
+    if request.method == "POST" and form.is_valid():
+        logger.debug("Processing unavailability submission for staff_id=%s", staff.id)
+        unavail = form.save(commit=False)
+        unavail.staff = staff
+        unavail.save()
+        logger.info("Saved unavailability id=%s for staff_id=%s", unavail.id, staff.id)
+        # Create extra availability slots for any scheduled entries affected
+        try:
+            affected = TimetableEntry.objects.filter(
+                staff=staff,
+                session=unavail.session,
+                day=unavail.day,
+                period_number__gte=unavail.period_number,
+                period_number__lt=unavail.period_number + unavail.duration_periods,
+            )
+            for entry in affected:
+                # Avoid duplicate create if already exists
+                ExtraClassAvailability.objects.get_or_create(
+                    session=entry.session,
+                    course=entry.course,
+                    day=entry.day,
+                    period_number=entry.period_number,
+                    duration_periods=entry.duration_periods,
+                    room=entry.room,
+                    defaults={"created_from": entry},
+                )
+            logger.info("Published %s extra slot(s) due to unavailability id=%s", affected.count(), unavail.id)
+            # Notify other staff in the course
+            others = Staff.objects.filter(course=staff.course).exclude(id=staff.id)
+            msg = f"Extra slot available: {unavail.day} P{unavail.period_number} for {staff.course}"
+            for s in others:
+                NotificationStaff.objects.create(staff=s, message=msg)
+            logger.debug("Notified %s staff about extra slots", others.count())
+            TimetableAuditLog.objects.create(
+                actor=request.user,
+                action="unavailable",
+                entry=None,
+                details=f"{staff} unavailable {unavail.day} P{unavail.period_number} ({unavail.duration_periods}p)"
+            )
+            messages.success(request, "Unavailability recorded and extra slots published where applicable.")
+        except Exception as e:
+            logger.exception("Error while publishing extra slots for unavailability id=%s", unavail.id)
+            messages.error(request, "Saved unavailability but could not publish slots. The issue has been logged.")
+        return redirect(reverse("staff_mark_unavailability"))
+    return render(request, "staff_template/unavailability.html", context)
+
+
+def staff_schedule_extra_class(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    form = ExtraClassScheduleForm(request.POST or None)
+    # Ensure model-level validation sees the correct staff during form.is_valid()
+    form.instance.staff = staff
+    # Limit selectable subjects to those taught by this staff
+    form.fields["subject"].queryset = Subject.objects.filter(staff=staff)
+    # Limit course to staff's course
+    form.fields["course"].queryset = Course.objects.filter(id=staff.course_id)
+
+    existing = ExtraClassSchedule.objects.filter(staff=staff).order_by("-start_datetime")
+    context = {
+        "page_title": "Schedule Extra Class",
+        "form": form,
+        "existing": existing,
+    }
+    if request.method == "POST" and form.is_valid():
+        logger.debug("Processing extra class schedule request for staff_id=%s", staff.id)
+        sched = form.save(commit=False)
+        sched.staff = staff
+        # Default: require HOD approval
+        sched.requires_hod_approval = True
+        try:
+            with transaction.atomic():
+                sched.full_clean()
+                sched.save()
+                logger.info("Saved extra class schedule id=%s for staff_id=%s", sched.id, staff.id)
+                NotificationStaff.objects.create(
+                    staff=staff,
+                    message=f"Extra class request submitted: {sched.subject} on {sched.start_datetime}"
+                )
+                TimetableAuditLog.objects.create(
+                    actor=request.user,
+                    action="schedule_extra",
+                    details=f"{staff} requested extra class {sched.subject} on {sched.start_datetime}"
+                )
+                messages.success(request, "Extra class request submitted for approval.")
+                return redirect(reverse("staff_schedule_extra_class"))
+        except Exception:
+            logger.exception("Error while scheduling extra class for staff_id=%s", staff.id)
+            messages.error(request, "Could not schedule extra class. Please check your inputs." )
+            # Fall through to re-render the page with form errors and context
+            
+    # If form is invalid or exception occurred, render page with context
+    return render(request, "staff_template/extra_class_schedule.html", context)
+
+
+def staff_extra_class_request(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    form = ExtraClassRequestForm(request.POST or None, staff=staff)
+    context = {
+        "page_title": "Request Extra Class",
+        "form": form,
+        "requests": ExtraClassRequest.objects.filter(staff=staff).order_by("-created_at"),
+    }
+    if request.method == "POST" and form.is_valid():
+        req = form.save(commit=False)
+        req.staff = staff
+        req.status = "requested"
+        req.save()
+        # Notify other teachers in the same course about this extra class request
+        try:
+            others = Staff.objects.filter(course=staff.course).exclude(id=staff.id)
+            msg = (
+                f"Extra class requested: {req.subject.name} ({req.session}) in {req.course.name}. "
+                f"Preferred: {req.preferred_day or '-'} P{req.preferred_period or '-'}"
+            )
+            for s in others:
+                NotificationStaff.objects.create(staff=s, message=msg)
+        except Exception:
+            # Non-fatal: continue even if notifications fail
+            pass
+        TimetableAuditLog.objects.create(
+            actor=request.user,
+            action="extra_request",
+            details=f"Extra request for {req.subject} {req.session} {req.course}"
+        )
+        messages.success(request, "Extra class request submitted.")
+        return redirect(reverse("staff_extra_class_request"))
+    return render(request, "staff_template/extra_class_request.html", context)
+
+
+def staff_available_extra_slots(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    # Filter slots for the staff course and unclaimed
+    slots = ExtraClassAvailability.objects.filter(course=staff.course, claimed_by__isnull=True).select_related("room", "course", "session")
+    context = {
+        "page_title": "Available Extra Slots",
+        "slots": slots.order_by("day", "period_number"),
+        "subjects": Subject.objects.filter(staff=staff),
+        "rooms": Room.objects.all().order_by("name"),
+    }
+    return render(request, "staff_template/extra_slots.html", context)
+
+
+@transaction.atomic
+def staff_claim_extra_slot(request, slot_id: int):
+    staff = get_object_or_404(Staff, admin=request.user)
+    slot = get_object_or_404(ExtraClassAvailability, id=slot_id, claimed_by__isnull=True)
+    subject_id = request.POST.get("subject_id")
+    subject = get_object_or_404(Subject, id=subject_id)
+    room_id = request.POST.get("room_id")
+    chosen_room = None
+    if room_id:
+        try:
+            chosen_room = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            chosen_room = None
+    # Basic validations
+    if subject.staff_id != staff.id:
+        messages.error(request, "You can only claim slots for your own subject.")
+        return redirect(reverse("staff_available_extra_slots"))
+    if subject.course_id != slot.course_id:
+        messages.error(request, "Subject course does not match slot course.")
+        return redirect(reverse("staff_available_extra_slots"))
+    # Prevent conflicts: staff, room, course slots already ensured unique via TimetableEntry constraints
+    entry = TimetableEntry(
+        session=slot.session,
+        course=slot.course,
+        subject=subject,
+        staff=staff,
+        room=chosen_room or slot.room,
+        day=slot.day,
+        period_number=slot.period_number,
+        is_lab=False,
+        duration_periods=slot.duration_periods,
+    )
+    try:
+        entry.clean()
+        entry.save()
+        slot.claimed_by = staff
+        slot.subject = subject
+        slot.save()
+        TimetableAuditLog.objects.create(
+            actor=request.user,
+            action="schedule_extra",
+            entry=entry,
+            details=f"Scheduled extra {subject} on {slot.day} P{slot.period_number}"
+        )
+        # Notify students in the course about the scheduled extra class
+        try:
+            students = Student.objects.filter(course=slot.course)
+            msg = (
+                f"Extra class scheduled: {subject.name} by {staff.admin.get_full_name()} "
+                f"on {slot.day} P{slot.period_number} ({TimetableEntry.SLOT_LABELS.get(slot.period_number, '')})"
+            )
+            for stu in students:
+                NotificationStudent.objects.create(student=stu, message=msg)
+        except Exception:
+            # Non-fatal
+            pass
+        messages.success(request, "Extra slot claimed and scheduled.")
+    except Exception as e:
+        messages.error(request, f"Could not schedule extra class: {e}")
+    return redirect(reverse("staff_available_extra_slots"))
+
+
+def staff_course_extra_classes(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    schedules = (
+        ExtraClassSchedule.objects
+        .filter(course=staff.course, status__in=["approved", "scheduled"])
+        .select_related("staff", "subject", "course", "room")
+        .order_by("-start_datetime")
+    )
+    context = {
+        "page_title": "Course Extra Classes",
+        "schedules": schedules,
+    }
+    return render(request, "staff_template/extra_classes_course.html", context)
+
+
+def proctor_dashboard(request):
+    staff = get_object_or_404(Staff, admin=request.user)
+    assignments = ProctorAssignment.objects.filter(proctor=staff, active=True).select_related("student")
+    students = [a.student for a in assignments]
+    fees = FeePayment.objects.filter(student__in=students).select_related("student", "session")
+    context = {
+        "page_title": "Proctor Dashboard",
+        "assignments": assignments,
+        "fees": fees,
+    }
+    return render(request, "staff_template/proctor_dashboard.html", context)
+
+
+def staff_review_fee(request, fee_id: int):
+    staff = get_object_or_404(Staff, admin=request.user)
+    fee = get_object_or_404(FeePayment, id=fee_id)
+    # Ensure this staff is proctor of the student
+    if not ProctorAssignment.objects.filter(proctor=staff, student=fee.student, active=True).exists():
+        messages.error(request, "You are not the proctor for this student")
+        return redirect(reverse("proctor_dashboard"))
+    action = request.POST.get("action")
+    notes = request.POST.get("notes", "")
+    if action not in ("approve", "reject"):
+        messages.error(request, "Invalid action")
+        return redirect(reverse("proctor_dashboard"))
+    fee.status = "approved" if action == "approve" else "rejected"
+    fee.notes = notes
+    fee.reviewed_by = staff
+    from django.utils import timezone
+    fee.reviewed_at = timezone.now()
+    fee.save()
+    messages.success(request, f"Fee {fee.status} for {fee.student}")
+    return redirect(reverse("proctor_dashboard"))
 
 
 

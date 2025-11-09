@@ -1,0 +1,117 @@
+{% extends "main_app/base.html" %}
+{% load static %}
+{% block page_title %}{{ page_title }}{% endblock page_title %}
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Schedule Extra Class</h3></div>
+          <div class="card-body">
+            <form method="post" novalidate>
+              {% csrf_token %}
+              {{ form.non_field_errors }}
+              <div class="form-group">
+                <label>Session</label>
+                {{ form.session }}
+              </div>
+              <div class="form-group">
+                <label>Course</label>
+                {{ form.course }}
+              </div>
+              <div class="form-group">
+                <label>Subject</label>
+                {{ form.subject }}
+              </div>
+              <div class="form-group">
+                <label>Room (optional)</label>
+                {{ form.room }}
+              </div>
+              <div class="form-group">
+                <label>Date & Time</label>
+                <div class="input-group date" id="datetimepicker1" data-target-input="nearest">
+                  {{ form.start_datetime }}
+                  <div class="input-group-append" data-target="#datetimepicker1" data-toggle="datetimepicker">
+                    <div class="input-group-text"><i class="fa fa-calendar"></i></div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Duration (minutes)</label>
+                {{ form.duration_minutes }}
+              </div>
+              <div class="form-group">
+                <label>Notes (optional)</label>
+                {{ form.notes }}
+              </div>
+              <button type="submit" class="btn btn-dark">Submit Request</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-outline card-dark">
+          <div class="card-header"><h3 class="card-title">My Extra Class Requests</h3></div>
+          <div class="card-body table-responsive p-0">
+            <table class="table table-hover text-nowrap">
+              <thead>
+                <tr>
+                  <th>Date/Time</th>
+                  <th>Subject</th>
+                  <th>Course</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for s in existing %}
+                <tr>
+                  <td>{{ s.start_datetime }}</td>
+                  <td>{{ s.subject }}</td>
+                  <td>{{ s.course }}</td>
+                  <td>{{ s.duration_minutes }}m</td>
+                  <td>
+                    {% if s.status == 'approved' %}<span class="badge badge-success">Approved</span>
+                    {% elif s.status == 'rejected' %}<span class="badge badge-danger">Rejected</span>
+                    {% elif s.status == 'scheduled' %}<span class="badge badge-primary">Scheduled</span>
+                    {% elif s.status == 'cancelled' %}<span class="badge badge-secondary">Cancelled</span>
+                    {% else %}<span class="badge badge-warning">Requested</span>{% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-center text-muted">No requests yet</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col-12">
+        <div class="card card-outline card-dark">
+          <div class="card-header"><h3 class="card-title">Calendar (visual)</h3></div>
+          <div class="card-body">
+            <p class="text-muted">Your scheduled extra classes will appear here. Use the date-time picker to add new ones.</p>
+            <!-- Placeholder for future FullCalendar integration; using basic table or list for now. -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% block custom_js %}
+  <script src="{% static 'plugins/moment/moment.min.js' %}"></script>
+  <script src="{% static 'plugins/tempusdominus-bootstrap-4/js/tempusdominus-bootstrap-4.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'plugins/tempusdominus-bootstrap-4/css/tempusdominus-bootstrap-4.min.css' %}">
+  <script>
+    $(function(){
+      $('#datetimepicker1').datetimepicker({
+        format: 'YYYY-MM-DD HH:mm',
+        icons: { time: 'far fa-clock' }
+      });
+    });
+  </script>
+  {% endblock custom_js %}
+</section>
+{% endblock content %}

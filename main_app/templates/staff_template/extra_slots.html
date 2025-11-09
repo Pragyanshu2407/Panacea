@@ -1,0 +1,45 @@
+{% extends "main_app/base.html" %}
+{% block content %}
+<h4>{{ page_title }}</h4>
+<p class="text-muted">Open slots due to staff unavailability in your course.</p>
+{% if messages %}
+  <div class="mt-2">{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+{% endif %}
+<table class="table table-sm">
+  <thead><tr><th>Session</th><th>Day</th><th>Period</th><th>Duration</th><th>Room</th><th>Subject</th><th>Claim</th></tr></thead>
+  <tbody>
+    {% for s in slots %}
+    <tr>
+      <td>{{ s.session }}</td>
+      <td>{{ s.day }}</td>
+      <td>{{ s.period_number }}</td>
+      <td>{{ s.duration_periods }}</td>
+      <td>
+        {{ s.room }}
+        <div class="small text-muted">Change room if occupied:</div>
+        <form method="post" action="{% url 'staff_claim_extra_slot' s.id %}" class="d-flex mt-1">
+          {% csrf_token %}
+          <select name="room_id" class="form-control form-control-sm me-2">
+            <option value="">Use listed room</option>
+            {% for r in rooms %}
+              <option value="{{ r.id }}" {% if r.id == s.room.id %}selected{% endif %}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+          <select name="subject_id" class="form-control form-control-sm me-2" required>
+            <option value="" disabled selected>Select subject</option>
+            {% for sub in subjects %}
+              <option value="{{ sub.id }}">{{ sub.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-success btn-sm">Claim</button>
+        </form>
+      </td>
+      <td>{% if s.subject %}{{ s.subject }}{% else %}-{% endif %}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="text-muted">No open slots currently.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn btn-secondary" href="{% url 'staff_extra_class_request' %}">Request Extra Class</a>
+{% endblock %}
