@@ -105,6 +105,7 @@ urlpatterns = [
     path("staff/tests/<int:test_id>/questions/", staff_views.staff_add_question, name="staff_add_question"),
     path("staff/attendance/take/", staff_views.staff_take_attendance,
          name='staff_take_attendance'),
+    path("staff/get_sections/", staff_views.get_sections, name='get_sections'),
     path("staff/attendance/update/", staff_views.staff_update_attendance,
          name='staff_update_attendance'),
     path("staff/get_students/", staff_views.get_students, name='get_students'),

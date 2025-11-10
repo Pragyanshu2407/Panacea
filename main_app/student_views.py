@@ -16,7 +16,8 @@ from .models import *
 
 def student_home(request):
     student = get_object_or_404(Student, admin=request.user)
-    total_subject = Subject.objects.filter(course=student.course).count()
+    # Subject now relates to Course via M2M 'courses'
+    total_subject = Subject.objects.filter(courses=student.course).count()
     total_attendance = AttendanceReport.objects.filter(student=student).count()
     total_present = AttendanceReport.objects.filter(student=student, status=True).count()
     if total_attendance == 0:  # Don't divide. DivisionByZero
@@ -27,7 +28,7 @@ def student_home(request):
     subject_name = []
     data_present = []
     data_absent = []
-    subjects = Subject.objects.filter(course=student.course)
+    subjects = Subject.objects.filter(courses=student.course)
     for subject in subjects:
         attendance = Attendance.objects.filter(subject=subject)
         present_count = AttendanceReport.objects.filter(
@@ -54,7 +55,13 @@ def student_home(request):
 
 def student_timetable(request):
     student = get_object_or_404(Student, admin=request.user)
-    entries = TimetableEntry.objects.filter(course=student.course, session=student.session).select_related("subject", "staff", "room")
+    # Filter strictly by the student's section and session so students
+    # only see their own section's timetable, not the entire course.
+    entries = (
+        TimetableEntry.objects
+        .filter(session=student.session, section=student.section)
+        .select_related("subject", "staff", "room")
+    )
     days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
     grid = {d: [None] * 6 for d in days}
     for e in entries:
@@ -125,7 +132,8 @@ def student_view_attendance(request):
     if request.method != 'POST':
         course = get_object_or_404(Course, id=student.course.id)
         context = {
-            'subjects': Subject.objects.filter(course=course),
+            # Filter by M2M 'courses'
+            'subjects': Subject.objects.filter(courses=course),
             'page_title': 'View Attendance'
         }
         return render(request, 'student_template/student_view_attendance.html', context)
@@ -288,9 +296,9 @@ def view_books(request):
 # Notes view and MCQ tests for students
 def student_view_notes(request):
     student = get_object_or_404(Student, admin=request.user)
-    subjects = Subject.objects.filter(course=student.course)
+    subjects = Subject.objects.filter(courses=student.course)
     subject_id = request.GET.get("subject")
-    notes_qs = Note.objects.filter(subject__course=student.course).select_related("subject", "staff")
+    notes_qs = Note.objects.filter(subject__courses=student.course).select_related("subject", "staff")
     if subject_id:
         notes_qs = notes_qs.filter(subject_id=subject_id)
     context = {
@@ -304,7 +312,7 @@ def student_view_notes(request):
 
 def student_available_tests(request):
     student = get_object_or_404(Student, admin=request.user)
-    tests = MCQTest.objects.filter(subject__course=student.course, is_active=True).select_related("subject", "staff")
+    tests = MCQTest.objects.filter(subject__courses=student.course, is_active=True).select_related("subject", "staff")
     context = {
         "page_title": "Available MCQ Tests",
         "tests": tests.order_by("-created_at"),
@@ -314,7 +322,7 @@ def student_available_tests(request):
 
 def student_take_test(request, test_id: int):
     student = get_object_or_404(Student, admin=request.user)
-    test = get_object_or_404(MCQTest, id=test_id, subject__course=student.course, is_active=True)
+    test = get_object_or_404(MCQTest, id=test_id, subject__courses=student.course, is_active=True)
     questions = MCQQuestion.objects.filter(test=test).prefetch_related("options")
     # Check if already submitted
     existing = MCQSubmission.objects.filter(test=test, student=student).first()

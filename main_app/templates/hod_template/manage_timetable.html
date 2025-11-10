@@ -59,7 +59,143 @@
               <input type="hidden" name="auto_generate" value="1" />
               <button type="submit" class="btn btn-warning">Auto Generate for All</button>
             </form>
-            <p class="text-muted mt-2">Generates entries for all subjects in the latest session up to each subject's weekly credits, avoiding staff/room/course clashes across Mon–Fri, periods 1–6.</p>
+            <p class="text-muted mt-2">Generates entries for all subjects in the latest session up to each subject's weekly credits, ensuring section-wise timetables with staff/room/section conflict checks across Mon–Fri, periods 1–6.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card card-outline card-danger">
+          <div class="card-header"><h3 class="card-title">Erase Timetable Entries</h3></div>
+          <div class="card-body">
+            <form method="post" onsubmit="return confirm('Erase all timetable entries for selected session?');">
+              {% csrf_token %}
+              <input type="hidden" name="erase_entries" value="1" />
+              <div class="form-group">
+                <label for="erase_session_id">Session:</label>
+                <select id="erase_session_id" name="erase_session_id" class="form-control">
+                  <option value="">Latest session</option>
+                  {% for s in sessions %}
+                    <option value="{{ s.id }}">{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-danger">Erase Entries</button>
+            </form>
+            <p class="text-muted mt-2">Deletes all timetable entries for the selected session. If none selected, uses the latest session.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card card-outline card-info">
+          <div class="card-header"><h3 class="card-title">Timetable Audit</h3></div>
+          <div class="card-body">
+            {% if audit %}
+              <p class="mb-2"><strong>Session:</strong> {{ audit.session }}</p>
+
+              <div class="mb-3">
+                <h5>Credits Coverage</h5>
+                <div class="table-responsive">
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Subject</th>
+                        <th>Course</th>
+                        <th>Section</th>
+                        <th>Scheduled / Credits</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in audit.coverage %}
+                        <tr>
+                          <td>{{ row.subject }}</td>
+                          <td>{{ row.course }}</td>
+                          <td>{{ row.section }}</td>
+                          <td>{{ row.count }} / {{ row.credits }}</td>
+                          <td>
+                            {% if row.status == 'ok' %}
+                              <span class="badge badge-success">OK</span>
+                            {% elif row.status == 'under' %}
+                              <span class="badge badge-warning">Under</span>
+                            {% else %}
+                              <span class="badge badge-danger">Over</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% empty %}
+                        <tr><td colspan="5" class="text-muted">No subjects/sections found.</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <h5>Conflicts</h5>
+                <p>
+                  <span class="mr-3">Staff: <span class="badge badge-{{ audit.conflicts.staff|length|yesno:'danger,success' }}">{{ audit.conflicts.staff|length }}</span></span>
+                  <span class="mr-3">Room: <span class="badge badge-{{ audit.conflicts.room|length|yesno:'danger,success' }}">{{ audit.conflicts.room|length }}</span></span>
+                  <span class="mr-3">Section: <span class="badge badge-{{ audit.conflicts.section|length|yesno:'danger,success' }}">{{ audit.conflicts.section|length }}</span></span>
+                  <span class="mr-3">Per-day duplicates: <span class="badge badge-{{ audit.conflicts.per_day_dupes|length|yesno:'danger,success' }}">{{ audit.conflicts.per_day_dupes|length }}</span></span>
+                </p>
+                {% if audit.conflicts.staff or audit.conflicts.room or audit.conflicts.section or audit.conflicts.per_day_dupes %}
+                  <details>
+                    <summary>Show details</summary>
+                    <div class="row mt-2">
+                      <div class="col-md-6">
+                        <h6>Staff</h6>
+                        <ul>
+                          {% for c in audit.conflicts.staff|slice:':10' %}
+                            <li>{{ c.day }} P{{ c.period_number }} — staff #{{ c.staff_id }} ×{{ c.c }}</li>
+                          {% empty %}<li class="text-muted">None</li>{% endfor %}
+                        </ul>
+                      </div>
+                      <div class="col-md-6">
+                        <h6>Room</h6>
+                        <ul>
+                          {% for c in audit.conflicts.room|slice:':10' %}
+                            <li>{{ c.day }} P{{ c.period_number }} — room #{{ c.room_id }} ×{{ c.c }}</li>
+                          {% empty %}<li class="text-muted">None</li>{% endfor %}
+                        </ul>
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="col-md-6">
+                        <h6>Section</h6>
+                        <ul>
+                          {% for c in audit.conflicts.section|slice:':10' %}
+                            <li>{{ c.day }} P{{ c.period_number }} — section #{{ c.section_id }} ×{{ c.c }}</li>
+                          {% empty %}<li class="text-muted">None</li>{% endfor %}
+                        </ul>
+                      </div>
+                      <div class="col-md-6">
+                        <h6>Per-day duplicates</h6>
+                        <ul>
+                          {% for c in audit.conflicts.per_day_dupes|slice:':10' %}
+                            <li>{{ c.day }} — section #{{ c.section_id }}, subject #{{ c.subject_id }} ×{{ c.c }}</li>
+                          {% empty %}<li class="text-muted">None</li>{% endfor %}
+                        </ul>
+                      </div>
+                    </div>
+                  </details>
+                {% endif %}
+              </div>
+
+              <div class="mb-1">
+                <h5>Same-Course Multi-Section Slots</h5>
+                <p>Total: <span class="badge badge-info">{{ audit.concurrency|length }}</span></p>
+                <ul>
+                  {% for s in audit.concurrency|slice:':12' %}
+                    <li>{{ s.day }} P{{ s.period_number }} — course #{{ s.course_id }} sections: {{ s.sec_count }}</li>
+                  {% empty %}
+                    <li class="text-muted">None</li>
+                  {% endfor %}
+                </ul>
+                <p class="text-muted">These are expected and indicate parallel classes across sections of the same course.</p>
+              </div>
+            {% else %}
+              <p class="text-muted">No session found. Create a session to audit.</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -74,6 +210,7 @@
                   <th>Day</th>
                   <th>Time</th>
                   <th>Course</th>
+                  <th>Section</th>
                   <th>Subject</th>
                   <th>Staff</th>
                   <th>Room</th>
@@ -86,6 +223,7 @@
                   <td>{{ e.get_day_display }}</td>
                   <td>{{ e.slot_label }}{% if e.is_lab %} <span class="badge badge-info">Lab</span>{% endif %}</td>
                   <td>{{ e.course }}</td>
+                  <td>{% if e.section %}{{ e.section.name }}{% else %}-{% endif %}</td>
                   <td>{{ e.subject }}</td>
                   <td>{{ e.staff }}</td>
                   <td>{{ e.room }}</td>

@@ -29,6 +29,13 @@
                             </select>
                         </div>
 
+                        <div class="form-group" id="section_wrapper" style="display:none;">
+                            <label>Section</label>
+                            <select name="section" class="form-control" id='section'>
+                                <option value="">----</option>
+                            </select>
+                        </div>
+
 
                         <div class="form-group">
                             <label>Session Year</label>
@@ -70,10 +77,41 @@
 <script>
     $(document).ready(function () {
 
+        // When subject changes, fetch its sections and populate dropdown
+        $(document).on('change', '#subject', function(){
+            var subject = $(this).val();
+            $('#section').html('<option value="">----</option>');
+            if (!subject){
+                $('#section_wrapper').hide();
+                return;
+            }
+            $.ajax({
+                url: "{% url 'get_sections' %}",
+                type: 'POST',
+                data: { subject: subject }
+            }).done(function(response){
+                var json_data = JSON.parse(response);
+                if (json_data.length > 0){
+                    var html = "";
+                    for (key in json_data){
+                        html += "<option value='"+json_data[key]['id']+"'>"+json_data[key]['name']+"</option>";
+                    }
+                    $('#section').html(html);
+                    $('#section_wrapper').show();
+                }else{
+                    // No sections assigned; hide selector
+                    $('#section_wrapper').hide();
+                }
+            }).fail(function(){
+                $('#section_wrapper').hide();
+            });
+        });
+
        
         $("#fetch_student").click(function () {
             var subject = $("#subject").val()
             var session = $("#session").val()
+            var section = $("#section").val()
             $("#student_data").html(null)
 if (subject.length  == 0 || session.length == 0){
     alert("Please select session and subject");
@@ -84,7 +122,8 @@ if (subject.length  == 0 || session.length == 0){
                 type: 'POST',
                 data: {
                     subject: subject,
-                    session: session
+                    session: session,
+                    section: section
                 }
             }).done(function (response) {
                 var json_data = JSON.parse(response)

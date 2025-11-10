@@ -47,7 +47,10 @@ def staff_home(request):
 def staff_timetable(request):
     staff = get_object_or_404(Staff, admin=request.user)
     # Fetch all entries for this staff across sessions
-    entries = TimetableEntry.objects.filter(staff=staff).select_related("session", "course", "subject", "room")
+    entries = (
+        TimetableEntry.objects.filter(staff=staff)
+        .select_related("session", "course", "section", "subject", "room", "subject__semester")
+    )
     days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
     grid = {d: [None] * 6 for d in days}
     for e in entries:
@@ -235,8 +238,8 @@ def staff_claim_extra_slot(request, slot_id: int):
     if subject.staff_id != staff.id:
         messages.error(request, "You can only claim slots for your own subject.")
         return redirect(reverse("staff_available_extra_slots"))
-    if subject.course_id != slot.course_id:
-        messages.error(request, "Subject course does not match slot course.")
+    if not subject.courses.filter(id=slot.course_id).exists():
+        messages.error(request, "Subject is not offered for the selected course.")
         return redirect(reverse("staff_available_extra_slots"))
     # Prevent conflicts: staff, room, course slots already ensured unique via TimetableEntry constraints
     entry = TimetableEntry(
@@ -346,14 +349,42 @@ def staff_take_attendance(request):
 
 
 @csrf_exempt
+def get_sections(request):
+    """Return sections assigned to the given subject."""
+    subject_id = request.POST.get('subject')
+    try:
+        subject = get_object_or_404(Subject, id=subject_id)
+        sections = subject.sections.all().order_by('name')
+        section_data = []
+        for section in sections:
+            section_data.append({
+                "id": section.id,
+                "name": f"{section.course.name} - {section.name}"
+            })
+        return JsonResponse(json.dumps(section_data), content_type='application/json', safe=False)
+    except Exception as e:
+        return e
+
+@csrf_exempt
 def get_students(request):
     subject_id = request.POST.get('subject')
     session_id = request.POST.get('session')
+    section_id = request.POST.get('section')
     try:
         subject = get_object_or_404(Subject, id=subject_id)
         session = get_object_or_404(Session, id=session_id)
-        students = Student.objects.filter(
-            course_id=subject.course.id, session=session)
+        # If a specific section is chosen, filter by it directly
+        if section_id:
+            students = Student.objects.filter(section_id=section_id, session=session)
+        else:
+            # Otherwise, restrict to the subject's assigned sections (if any)
+            sections_qs = subject.sections.all()
+            if sections_qs.exists():
+                students = Student.objects.filter(section__in=sections_qs, session=session)
+            else:
+                # Fallback to course-level filter if sections are not configured
+                students = Student.objects.filter(
+                    course_id__in=subject.courses.values_list('id', flat=True), session=session)
         student_data = []
         for student in students:
             data = {

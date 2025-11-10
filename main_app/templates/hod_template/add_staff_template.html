@@ -13,6 +13,10 @@
         font-weight: bold;
         color: green;
       }
+      /* Clean up checkbox lists rendered by CheckboxSelectMultiple */
+      .form-group ul{ list-style: none; padding-left: 0; margin: 0; }
+      .form-group li{ margin-bottom: 6px; }
+      .checkbox-list{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   </style>
 {% endblock custom_css %}
 {% block content %}
@@ -43,6 +47,13 @@
         return re.test(String(email).toLowerCase());
     }
     $(document).ready(function(){
+        // Reload page with selected course to filter sections dynamically
+        $("#id_course").on("change", function(){
+            var cid = $(this).val() || "";
+            var base = window.location.pathname;
+            window.location.href = cid ? (base + "?course_id=" + cid) : base;
+        });
+
         $("#id_email").keyup(function(){
             
             var email = $(this).val()

@@ -1,0 +1,153 @@
+/* Dark Orange Theme Overrides for AdminLTE */
+:root {
+  --bg-main: #0f0f10;
+  --bg-alt: #151517;
+  --text-main: #e6e6e6;
+  --text-muted: #b3b3b3;
+  --accent: #ff8c00; /* orange */
+  --accent-600: #ff7a00;
+  --accent-700: #e76f00;
+  --border: #2a2a2e;
+}
+
+/* Global */
+body,
+.content-wrapper {
+  background-color: var(--bg-main) !important;
+  color: var(--text-main);
+}
+
+/* Navbar */
+.main-header.navbar.bg-dark-orange {
+  background-color: var(--bg-main) !important;
+  border-bottom: 2px solid var(--accent);
+}
+.main-header.navbar .nav-link,
+.main-header.navbar .nav-link i {
+  color: var(--text-main) !important;
+}
+.main-header.navbar .navbar-nav .nav-link:hover {
+  color: var(--accent) !important;
+}
+
+/* Sidebar */
+.main-sidebar.sidebar-dark-orange {
+  background-color: var(--bg-alt) !important;
+}
+.sidebar-dark-orange .sidebar {
+  background-color: var(--bg-alt) !important;
+}
+.sidebar-dark-orange .brand-link {
+  background-color: var(--bg-main) !important;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main) !important;
+}
+.sidebar-dark-orange .nav-sidebar > .nav-item .nav-link {
+  color: var(--text-muted);
+}
+.sidebar-dark-orange .nav-sidebar > .nav-item .nav-link:hover {
+  color: var(--accent);
+}
+.sidebar-dark-orange .nav-sidebar > .nav-item .nav-link.active {
+  background-color: rgba(255, 140, 0, 0.15) !important;
+  color: var(--accent) !important;
+}
+.sidebar-dark-orange .nav-sidebar .nav-treeview .nav-link {
+  color: var(--text-muted);
+}
+.sidebar-dark-orange .nav-sidebar .nav-treeview .nav-link:hover {
+  color: var(--accent);
+}
+
+/* Cards */
+.card,
+.card-body,
+.card-header {
+  background-color: var(--bg-alt) !important;
+  color: var(--text-main);
+  border-color: var(--border) !important;
+}
+.card-header {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Tables */
+.table {
+  color: var(--text-main) !important;
+}
+.table thead th {
+  background-color: var(--bg-main) !important;
+  border-color: var(--border) !important;
+}
+.table tbody td,
+.table tbody th {
+  border-color: var(--border) !important;
+}
+
+/* Forms */
+.form-control,
+.custom-select,
+.custom-control-label,
+.input-group-text {
+  background-color: #1a1c20 !important;
+  color: var(--text-main) !important;
+  border-color: var(--border) !important;
+}
+.form-control::placeholder { color: #999; }
+.form-control:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 0.2rem rgba(255, 140, 0, 0.25) !important;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--accent) !important;
+  border-color: var(--accent-600) !important;
+  color: #111 !important;
+}
+.btn-primary:hover {
+  background-color: var(--accent-700) !important;
+  border-color: var(--accent-700) !important;
+}
+.btn-outline-primary {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--accent) !important;
+  color: #111 !important;
+}
+
+/* Alerts */
+.alert-danger {
+  background-color: rgba(220, 53, 69, 0.15) !important;
+  border-color: #842029 !important;
+  color: #ffb3b8 !important;
+}
+.alert-success {
+  background-color: rgba(40, 167, 69, 0.15) !important;
+  border-color: #1b5830 !important;
+  color: #b6f0c0 !important;
+}
+
+/* Breadcrumb */
+.breadcrumb .breadcrumb-item a {
+  color: var(--text-muted) !important;
+}
+.breadcrumb .breadcrumb-item.active {
+  color: var(--accent) !important;
+}
+
+/* Content Header */
+.content-header {
+  background-color: var(--bg-main);
+  border-bottom: 1px solid var(--border);
+}
+.content-header h1,
+.content-header .breadcrumb {
+  color: var(--text-main) !important;
+}
+
+/* Utilities */
+.text-light-override { color: var(--text-main) !important; }
+.bg-dark-orange { background-color: var(--bg-main) !important; }

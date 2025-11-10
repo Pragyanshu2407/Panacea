@@ -39,7 +39,7 @@ def admin_home(request):
     student_count_list_in_course = []
 
     for course in course_all:
-        subjects = Subject.objects.filter(course_id=course.id).count()
+        subjects = Subject.objects.filter(courses=course).count()
         students = Student.objects.filter(course_id=course.id).count()
         course_name_list.append(course.name)
         subject_count_list.append(subjects)
@@ -49,8 +49,8 @@ def admin_home(request):
     subject_list = []
     student_count_list_in_subject = []
     for subject in subject_all:
-        course = Course.objects.get(id=subject.course.id)
-        student_count = Student.objects.filter(course_id=course.id).count()
+        # Count students across all courses where this subject is offered
+        student_count = Student.objects.filter(course__in=subject.courses.all()).count()
         subject_list.append(subject.name)
         student_count_list_in_subject.append(student_count)
 
@@ -114,6 +114,17 @@ def manage_proctors(request):
 
 def add_staff(request):
     form = StaffForm(request.POST or None, request.FILES or None)
+    # On initial GET, if a course is provided, filter sections to that course
+    if request.method == 'GET':
+        course_id = request.GET.get('course_id')
+        if course_id:
+            try:
+                course = Course.objects.get(id=int(course_id))
+                form.fields['sections'].queryset = Section.objects.filter(course=course)
+                # Reflect selected course in the form
+                form.fields['course'].initial = course.id
+            except (ValueError, TypeError, Course.DoesNotExist):
+                pass
     context = {'form': form, 'page_title': 'Add Staff'}
     if request.method == 'POST':
         if form.is_valid():
@@ -124,6 +135,8 @@ def add_staff(request):
             gender = form.cleaned_data.get('gender')
             password = form.cleaned_data.get('password')
             course = form.cleaned_data.get('course')
+            sections = form.cleaned_data.get('sections')
+            semesters = form.cleaned_data.get('semesters')
             passport = request.FILES.get('profile_pic')
             fs = FileSystemStorage()
             filename = fs.save(passport.name, passport)
@@ -134,6 +147,14 @@ def add_staff(request):
                 user.gender = gender
                 user.address = address
                 user.staff.course = course
+                # Assign sections the staff can teach
+                if sections is not None:
+                    user.staff.save()
+                    user.staff.sections.set(sections)
+                # Assign semesters the staff can teach
+                if semesters is not None:
+                    user.staff.save()
+                    user.staff.semesters.set(semesters)
                 user.save()
                 messages.success(request, "Successfully Added")
                 return redirect(reverse('add_staff'))
@@ -159,6 +180,8 @@ def add_student(request):
             password = student_form.cleaned_data.get('password')
             course = student_form.cleaned_data.get('course')
             session = student_form.cleaned_data.get('session')
+            section = student_form.cleaned_data.get('section')
+            semester = student_form.cleaned_data.get('semester')
             passport = request.FILES['profile_pic']
             fs = FileSystemStorage()
             filename = fs.save(passport.name, passport)
@@ -170,6 +193,8 @@ def add_student(request):
                 user.address = address
                 user.student.session = session
                 user.student.course = course
+                user.student.section = section
+                user.student.semester = semester
                 user.save()
                 messages.success(request, "Successfully Added")
                 return redirect(reverse('add_student'))
@@ -278,6 +303,8 @@ def edit_staff(request, staff_id):
             gender = form.cleaned_data.get('gender')
             password = form.cleaned_data.get('password') or None
             course = form.cleaned_data.get('course')
+            sections = form.cleaned_data.get('sections')
+            semesters = form.cleaned_data.get('semesters')
             passport = request.FILES.get('profile_pic') or None
             try:
                 user = CustomUser.objects.get(id=staff.admin.id)
@@ -295,6 +322,14 @@ def edit_staff(request, staff_id):
                 user.gender = gender
                 user.address = address
                 staff.course = course
+                # Update teachable sections
+                if sections is not None:
+                    staff.save()
+                    staff.sections.set(sections)
+                # Update teachable semesters
+                if semesters is not None:
+                    staff.save()
+                    staff.semesters.set(semesters)
                 user.save()
                 staff.save()
                 messages.success(request, "Successfully Updated")
@@ -327,6 +362,8 @@ def edit_student(request, student_id):
             password = form.cleaned_data.get('password') or None
             course = form.cleaned_data.get('course')
             session = form.cleaned_data.get('session')
+            section = form.cleaned_data.get('section')
+            semester = form.cleaned_data.get('semester')
             passport = request.FILES.get('profile_pic') or None
             try:
                 user = CustomUser.objects.get(id=student.admin.id)
@@ -345,6 +382,8 @@ def edit_student(request, student_id):
                 user.gender = gender
                 user.address = address
                 student.course = course
+                student.section = section
+                student.semester = semester
                 user.save()
                 student.save()
                 messages.success(request, "Successfully Updated")
@@ -591,6 +630,24 @@ def manage_timetable(request):
                     messages.error(request, f"Error creating entry: {e}")
             else:
                 messages.error(request, "Please fix timetable form errors")
+        elif request.POST.get("erase_entries"):
+            # Erase timetable entries for the selected session (or latest if not provided)
+            session_id = request.POST.get("erase_session_id")
+            session = None
+            if session_id:
+                try:
+                    session = Session.objects.get(id=int(session_id))
+                except (Session.DoesNotExist, ValueError):
+                    session = None
+            if session is None:
+                session = Session.objects.order_by('-end_year').first()
+            if session is None:
+                messages.error(request, "No session found. Please create a session first.")
+                return redirect("manage_timetable")
+
+            deleted_count, _ = TimetableEntry.objects.filter(session=session).delete()
+            messages.warning(request, f"Erased {deleted_count} timetable entr{'y' if deleted_count == 1 else 'ies'} for session {session}.")
+            return redirect("manage_timetable")
         elif request.POST.get("auto_generate"):
             # One-click auto-generate using scheduling heuristic
             session = Session.objects.order_by('-end_year').first()
@@ -614,15 +671,88 @@ def manage_timetable(request):
                 messages.warning(request, f"{len(errors)} validation issues encountered during generation.")
             return redirect("manage_timetable")
 
-    entries = TimetableEntry.objects.select_related("session", "course", "subject", "staff", "room").order_by(
+    entries = TimetableEntry.objects.select_related("session", "course", "section", "subject", "staff", "room").order_by(
         "session__start_year", "day", "period_number"
     )
 
+    sessions = Session.objects.order_by('-end_year')
+
+    # Build audit summary for latest session
+    latest_session = sessions.first()
+    audit = None
+    if latest_session:
+        # Credits coverage per subject/section
+        coverage = []
+        for subj in Subject.objects.all():
+            credits = int(getattr(subj, "credits", 0) or 0)
+            for section in subj.sections.all():
+                cnt = TimetableEntry.objects.filter(
+                    session=latest_session,
+                    subject=subj,
+                    course=section.course,
+                    section=section,
+                ).count()
+                status = "ok" if cnt == credits else ("under" if cnt < credits else "over")
+                coverage.append({
+                    "subject": subj.name,
+                    "course": section.course.name,
+                    "section": section.name,
+                    "count": cnt,
+                    "credits": credits,
+                    "status": status,
+                })
+
+        # Conflicts (should be zero thanks to constraints; still compute for visibility)
+        staff_conflicts = list(
+            TimetableEntry.objects.filter(session=latest_session)
+            .values("day", "period_number", "staff_id")
+            .annotate(c=models.Count("id"))
+            .filter(c__gt=1)
+        )
+        room_conflicts = list(
+            TimetableEntry.objects.filter(session=latest_session)
+            .values("day", "period_number", "room_id")
+            .annotate(c=models.Count("id"))
+            .filter(c__gt=1)
+        )
+        section_conflicts = list(
+            TimetableEntry.objects.filter(session=latest_session)
+            .values("day", "period_number", "section_id")
+            .annotate(c=models.Count("id"))
+            .filter(c__gt=1)
+        )
+        per_day_dupes = list(
+            TimetableEntry.objects.filter(session=latest_session)
+            .values("day", "section_id", "subject_id")
+            .annotate(c=models.Count("id"))
+            .filter(c__gt=1)
+        )
+
+        concurrency_slots = list(
+            TimetableEntry.objects.filter(session=latest_session)
+            .values("day", "period_number", "course_id")
+            .annotate(sec_count=models.Count("section_id"))
+            .filter(sec_count__gt=1)
+        )
+
+        audit = {
+            "session": latest_session,
+            "coverage": coverage,
+            "conflicts": {
+                "staff": staff_conflicts,
+                "room": room_conflicts,
+                "section": section_conflicts,
+                "per_day_dupes": per_day_dupes,
+            },
+            "concurrency": concurrency_slots,
+        }
     context = {
         "page_title": page_title,
         "room_form": room_form,
         "entry_form": entry_form,
         "entries": entries,
+        "sessions": sessions,
+        "audit": audit,
     }
     return render(request, "hod_template/manage_timetable.html", context)
 

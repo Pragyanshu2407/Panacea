@@ -29,6 +29,12 @@
                       {% endif %}
                     </div>
                     <div>{{ p.course.name }}</div>
+                    {% if p.section %}
+                    <div>Section: {{ p.section.name }}</div>
+                    {% endif %}
+                    {% if p.subject.semester %}
+                    <div>Semester: {{ p.subject.semester.number }}</div>
+                    {% endif %}
                     <div>Room: {{ p.room.name }}</div>
                     <div>Session: {{ p.session }}</div>
                   {% else %}

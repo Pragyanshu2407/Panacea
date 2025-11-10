@@ -20,7 +20,9 @@
                                     <th>#</th>
                                     <th>Subject</th>
                                     <th>Staff</th>
-                                    <th>Course</th>
+                                    <th>Courses</th>
+                                    <th>Sections</th>
+                                    <th>Semester</th>
                                     <th>Credits</th>
                                     <th>Actions</th>
                                 </tr>
@@ -31,7 +33,27 @@
                                     <td>{{ forloop.counter }}</td>
                                     <td>{{subject.name}}</td>
                                     <td>{{subject.staff.admin}}</td>
-                                    <td>{{subject.course.name}}</td>
+                                    <td>
+                                        {% for course in subject.courses.all %}
+                                            {{ course.name }}{% if not forloop.last %}, {% endif %}
+                                        {% empty %}
+                                            -
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% for section in subject.sections.all %}
+                                            {{ section.name }}{% if not forloop.last %}, {% endif %}
+                                        {% empty %}
+                                            -
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% if subject.semester %}
+                                            {{ subject.semester.number }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
                                     <td>{{subject.credits}}</td>
                                     <td>
                                         <a href="{% url 'edit_subject' subject.id %}" class="btn btn-info">Edit</a> -

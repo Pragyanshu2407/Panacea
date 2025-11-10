@@ -13,25 +13,26 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static 'plugins/fontawesome-free/css/all.min.css' %}">
     <!-- Ionicons -->
-    <link rel="stylesheet" href="{% static 'https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css' %}">
+    <link rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <!-- icheck bootstrap -->
     <link rel="stylesheet" href="{% static 'plugins/icheck-bootstrap/icheck-bootstrap.min.css' %}">
     <!-- Theme style -->
     <link rel="stylesheet" href="{% static 'dist/css/adminlte.min.css' %}">
+    <!-- Modern Login Styles -->
+    <link rel="stylesheet" href="{% static 'dist/css/login-modern.css' %}">
     <!-- Google Font: Source Sans Pro -->
     <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700" rel="stylesheet">
     
 </head>
 
-<body class="hold-transition login-page" style="background-image: linear-gradient(to right top, #051937, #044269, #00719a, #00a4c6, #12d9eb);">
+<body class="hold-transition login-page login-modern">
     <div class="login-box">
-        <img style="margin-left: 100px; height: 150px; width: 160px;" src="{% static 'dist/img/virusx.png' %}" alt="Site Logo" />
-        <div class="login-logo">
-            <a href="" style="color: white;"><b>College</b> Portal</a>
-
+        <div class="brand">
+            <img src="{% static 'dist/img/virusx.png' %}" alt="Site Logo" />
+            <div class="brand-title">College Portal</div>
         </div>
         <!-- /.login-logo -->
-        <div class="card">
+        <div class="card login-card" id="login-card" aria-label="Login form container">
             <div class="card-body login-card-body">
                 <!-- <p class="login-box-msg">Sign in to start your session</p> -->
                 {% if messages %}
@@ -45,29 +46,31 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-                <form action="doLogin/" method="post">
+                <form action="doLogin/" method="post" id="login-form" aria-label="Login form" novalidate>
                     {% csrf_token %}
                     <div class="input-group mb-3">
-                        <input required type="email"  name='email' class="form-control" placeholder="Email" >
+                        <input required type="email"  name='email' id="login-email" class="form-control login-input" placeholder="Email" aria-label="Email address" aria-describedby="email-msg" aria-invalid="false">
                         <div class="input-group-append">
                             <div class="input-group-text">
                                 <span class="fas fa-envelope"></span>
                             </div>
                         </div>
                     </div>
+                    <div id="email-msg" class="validation-msg" role="status" aria-live="polite"></div>
                     <div class="input-group mb-3">
-                        <input required type="password" name='password' class="form-control" placeholder="Password">
+                        <input required type="password" name='password' id="login-password" class="form-control login-input" placeholder="Password" aria-label="Password" aria-describedby="pass-msg" aria-invalid="false">
                         <div class="input-group-append">
                             <div class="input-group-text">
                                 <span class="fas fa-lock"></span>
                             </div>
                         </div>
                     </div>
+                    <div id="pass-msg" class="validation-msg" role="status" aria-live="polite"></div>
                     
                     <div class="row">
                         <div class="col-8">
                             <div class="icheck-primary">
-                                <input type="checkbox" id="remember">
+                                <input type="checkbox" id="remember" aria-label="Remember me">
                                 <label for="remember">
                                     Remember Me
                                 </label>
@@ -75,7 +78,10 @@
                         </div>
                         <!-- /.col -->
                         <div class="col-4">
-                            <button type="submit" class="btn btn-success btn-block">Log In</button>
+                            <button type="submit" id="login-submit" class="btn btn-login btn-block" aria-label="Submit login">
+                                Log In
+                                <span class="spinner" aria-hidden="true"></span>
+                            </button>
                         </div>
 
 
@@ -100,6 +106,8 @@
     <script src="{% static 'plugins/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <!-- AdminLTE App -->
     <script src="{% static 'dist/js/adminlte.min.js' %}"></script>
+    <!-- Modern Login Interactions -->
+    <script src="{% static 'dist/js/login-modern.js' %}"></script>
 
 </body>
 

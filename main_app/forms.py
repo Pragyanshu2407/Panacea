@@ -62,8 +62,9 @@ class StudentForm(CustomUserForm):
 
     class Meta(CustomUserForm.Meta):
         model = Student
-        fields = CustomUserForm.Meta.fields + \
-            ['course', 'session']
+        fields = CustomUserForm.Meta.fields + [
+            'course', 'session', 'section', 'semester'
+        ]
 
 
 class AdminForm(CustomUserForm):
@@ -76,13 +77,43 @@ class AdminForm(CustomUserForm):
 
 
 class StaffForm(CustomUserForm):
+    class SectionMultipleChoiceField(forms.ModelMultipleChoiceField):
+        def label_from_instance(self, obj):
+            return obj.name  # show only 'A', 'B', 'C', 'D'
+
     def __init__(self, *args, **kwargs):
         super(StaffForm, self).__init__(*args, **kwargs)
+        # Order semesters and filter sections by selected course
+        self.fields['semesters'].queryset = Semester.objects.order_by('number')
+        # Improve checkbox rendering with a CSS class
+        self.fields['sections'].widget.attrs['class'] = 'checkbox-list'
+        self.fields['semesters'].widget.attrs['class'] = 'checkbox-list'
+
+        # Default: no sections until a course is chosen
+        course_obj = None
+        try:
+            if self.data and self.data.get('course'):
+                course_obj = Course.objects.filter(id=int(self.data.get('course'))).first()
+        except (ValueError, TypeError):
+            course_obj = None
+
+        if not course_obj and getattr(self.instance, 'course_id', None):
+            course_obj = self.instance.course
+
+        self.fields['sections'].queryset = (
+            Section.objects.filter(course=course_obj) if course_obj else Section.objects.none()
+        )
 
     class Meta(CustomUserForm.Meta):
         model = Staff
-        fields = CustomUserForm.Meta.fields + \
-            ['course' ]
+        fields = CustomUserForm.Meta.fields + ['course', 'sections', 'semesters']
+        widgets = {
+            'sections': forms.CheckboxSelectMultiple(),
+            'semesters': forms.CheckboxSelectMultiple(),
+        }
+
+    # Override sections field to control labels
+    sections = SectionMultipleChoiceField(queryset=Section.objects.none(), required=False, widget=forms.CheckboxSelectMultiple())
 
 
 class CourseForm(FormSettings):
@@ -101,7 +132,11 @@ class SubjectForm(FormSettings):
 
     class Meta:
         model = Subject
-        fields = ['name', 'staff', 'course', 'credits']
+        fields = ['name', 'staff', 'courses', 'sections', 'semester', 'credits']
+        widgets = {
+            'courses': forms.SelectMultiple(attrs={'class': 'form-control'}),
+            'sections': forms.SelectMultiple(attrs={'class': 'form-control'}),
+        }
 
 
 class SessionForm(FormSettings):
@@ -220,6 +255,7 @@ class TimetableEntryForm(forms.ModelForm):
         fields = [
             "session",
             "course",
+            "section",
             "subject",
             "staff",
             "room",

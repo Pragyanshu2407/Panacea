@@ -1,5 +1,5 @@
 {% load static %}
-<aside class="main-sidebar sidebar-dark-info elevation-4">
+<aside class="main-sidebar sidebar-light-sky elevation-4">
     {% if request.user.user_type == '1' %}
     <!-- Brand Logo -->
     <a href="{% url 'admin_home' %}" class="brand-link">
@@ -9,7 +9,7 @@
     </a>
 
     <!-- Sidebar -->
-    <div class="sidebar" style="background-image: linear-gradient(to right top, #0b3574, #033f91, #004aae, #0054cc, #125eeb);">
+    <div class="sidebar">
         <!-- Sidebar user panel (optional) -->
         <div class="user-panel mt-3 pb-3 mb-3 d-flex">
             <div class="image">

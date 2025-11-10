@@ -75,6 +75,28 @@ class Course(models.Model):
     def __str__(self):
         return self.name
 
+class Semester(models.Model):
+    number = models.PositiveSmallIntegerField()
+    label = models.CharField(max_length=64, blank=True)
+
+    def __str__(self):
+        return self.label or f"Semester {self.number}"
+
+
+class Section(models.Model):
+    name = models.CharField(max_length=32)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="sections")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["course", "name"], name="uniq_course_section_name"),
+        ]
+
+    def __str__(self):
+        return f"{self.course.name} - {self.name}"
+
 class Book(models.Model):
     name = models.CharField(max_length=200)
     author = models.CharField(max_length=200)
@@ -89,6 +111,8 @@ class Student(models.Model):
     admin = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.DO_NOTHING, null=True, blank=False)
     session = models.ForeignKey(Session, on_delete=models.DO_NOTHING, null=True)
+    section = models.ForeignKey('Section', on_delete=models.DO_NOTHING, null=True, blank=True)
+    semester = models.ForeignKey('Semester', on_delete=models.DO_NOTHING, null=True, blank=True)
 
     def __str__(self):
         return self.admin.last_name + ", " + self.admin.first_name
@@ -112,6 +136,8 @@ class IssuedBook(models.Model):
 class Staff(models.Model):
     course = models.ForeignKey(Course, on_delete=models.DO_NOTHING, null=True, blank=False)
     admin = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    sections = models.ManyToManyField('Section', blank=True, related_name="staff")
+    semesters = models.ManyToManyField('Semester', blank=True, related_name="staff")
 
     def __str__(self):
         return self.admin.first_name + " " +  self.admin.last_name
@@ -120,7 +146,9 @@ class Staff(models.Model):
 class Subject(models.Model):
     name = models.CharField(max_length=120)
     staff = models.ForeignKey(Staff,on_delete=models.CASCADE,)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    courses = models.ManyToManyField(Course, related_name="subjects")
+    sections = models.ManyToManyField('Section', related_name="subjects", blank=True)
+    semester = models.ForeignKey('Semester', on_delete=models.DO_NOTHING, null=True, blank=True)
     credits = models.PositiveSmallIntegerField(default=0, help_text="Classes per week limit")
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -245,6 +273,7 @@ class TimetableEntry(models.Model):
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    section = models.ForeignKey('Section', on_delete=models.CASCADE, null=True, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     staff = models.ForeignKey(Staff, on_delete=models.CASCADE)
     room = models.ForeignKey(Room, on_delete=models.PROTECT)
@@ -269,8 +298,8 @@ class TimetableEntry(models.Model):
             ),
             # Prevent a course group being scheduled for multiple classes at same time
             models.UniqueConstraint(
-                fields=["session", "day", "period_number", "course"],
-                name="uniq_course_slot",
+                fields=["session", "day", "period_number", "section"],
+                name="uniq_section_slot",
             ),
         ]
 
@@ -293,10 +322,111 @@ class TimetableEntry(models.Model):
         kind = " [Lab]" if self.is_lab else ""
         return f"{self.get_day_display()} {label}{span}: {self.course} - {self.subject} ({self.room}){kind}"
 
+    def _find_free_room_for(self, day: str, start_period: int, duration: int):
+        """Return a free room for the given day/period span or None."""
+        try:
+            from .models import Room, TimetableEntry
+            for room in Room.objects.all():
+                clash = False
+                for p in range(int(start_period), int(start_period) + int(duration)):
+                    if TimetableEntry.objects.filter(
+                        session_id=self.session_id,
+                        day=day,
+                        period_number=p,
+                        room_id=room.id,
+                    ).exists():
+                        clash = True
+                        break
+                if not clash:
+                    return room
+        except Exception:
+            return None
+        return None
+
+    def _suggest_alternatives_message(self, limit: int = 5) -> str:
+        """Suggest alternative day/period slots where staff, section/course, and room are free."""
+        try:
+            suggestions = []
+            duration = int(self.duration_periods or 1)
+            days = [c[0] for c in self.DAY_CHOICES]
+            from .models import TimetableEntry, StaffUnavailability
+            for day in days:
+                max_start = 6 - duration + 1
+                for start_p in range(1, max_start + 1):
+                    end_p = start_p + duration - 1
+                    # Skip original requested slot to avoid echoing the conflict
+                    if day == self.day and start_p == int(self.period_number):
+                        continue
+                    # Staff unavailability check
+                    unavail = StaffUnavailability.objects.filter(
+                        staff_id=self.staff_id,
+                        session_id=self.session_id,
+                        day=day,
+                    )
+                    unavailable_here = False
+                    for ua in unavail:
+                        covered = set(range(ua.period_number, ua.period_number + int(ua.duration_periods)))
+                        if set(range(start_p, end_p + 1)) & covered:
+                            unavailable_here = True
+                            break
+                    if unavailable_here:
+                        continue
+                    # Staff/section/course conflict check across spanned periods
+                    staff_ok = True
+                    section_ok = True
+                    course_ok = True
+                    for p in range(start_p, end_p + 1):
+                        if TimetableEntry.objects.filter(
+                            session_id=self.session_id,
+                            day=day,
+                            period_number=p,
+                            staff_id=self.staff_id,
+                        ).exists():
+                            staff_ok = False
+                            break
+                        if self.section_id and TimetableEntry.objects.filter(
+                            session_id=self.session_id,
+                            day=day,
+                            period_number=p,
+                            section_id=self.section_id,
+                        ).exists():
+                            section_ok = False
+                            break
+                        if TimetableEntry.objects.filter(
+                            session_id=self.session_id,
+                            day=day,
+                            period_number=p,
+                            course_id=self.course_id,
+                        ).exists():
+                            course_ok = False
+                            break
+                    if not (staff_ok and section_ok and course_ok):
+                        continue
+                    # Room availability
+                    room = self._find_free_room_for(day, start_p, duration)
+                    if room is None:
+                        continue
+                    suggestions.append(f"{day} P{start_p}")
+                    if len(suggestions) >= limit:
+                        break
+                if len(suggestions) >= limit:
+                    break
+            if suggestions:
+                return "Suggested alternatives: " + ", ".join(suggestions)
+        except Exception:
+            pass
+        return "No suitable alternative slots found in this week."
+
     def clean(self):
         # Ensure subject belongs to course and staff teaches subject
-        if self.subject.course_id != self.course_id:
-            raise ValidationError("Subject course mismatch with entry course")
+        if not self.subject.courses.filter(id=self.course_id).exists():
+            raise ValidationError("Subject is not offered for the selected course")
+        # Validate section association if provided
+        if self.section_id:
+            if self.section.course_id != self.course_id:
+                raise ValidationError("Selected section does not belong to the chosen course")
+            if not self.subject.sections.filter(id=self.section_id).exists():
+                raise ValidationError("Subject is not offered for the selected section")
         if self.subject.staff_id != self.staff_id:
             raise ValidationError("Selected staff is not assigned to the subject")
 
@@ -314,6 +444,27 @@ class TimetableEntry(models.Model):
         if end_period > 6:
             raise ValidationError("Session extends beyond the last available period")
 
+        # Block if staff marked unavailable for this weekly slot (day + period span)
+        try:
+            from .models import StaffUnavailability
+            unav_qs = StaffUnavailability.objects.filter(
+                staff_id=self.staff_id,
+                session_id=self.session_id,
+                day=self.day,
+            )
+            for ua in unav_qs:
+                covered = set(range(ua.period_number, ua.period_number + int(ua.duration_periods)))
+                if set(range(int(self.period_number), end_period + 1)) & covered:
+                    raise ValidationError(
+                        "Teacher is marked unavailable in the selected time range. "
+                        + self._suggest_alternatives_message()
+                    )
+        except ValidationError:
+            raise
+        except Exception:
+            # Non-fatal: keep scheduling if unavailability lookup fails
+            pass
+
         # If this slot originates from a published extra slot due to unavailability,
         # relax certain per-day subject restrictions to allow make-up/extra classes.
         try:
@@ -326,42 +477,86 @@ class TimetableEntry(models.Model):
         except Exception:
             extra_slot_exists = False
 
-        # Prevent scheduling same subject more than once per course/day,
+        # Enforce weekly credits cap per subject-section (or per subject-course when no section)
+        credits = int(getattr(self.subject, "credits", 0) or 0)
+        if credits > 0:
+            existing_qs = TimetableEntry.objects.filter(
+                session_id=self.session_id,
+                subject_id=self.subject_id,
+            )
+            if self.section_id:
+                existing_qs = existing_qs.filter(section_id=self.section_id)
+            else:
+                existing_qs = existing_qs.filter(course_id=self.course_id, section__isnull=True)
+            # Exclude self for updates
+            existing_qs = existing_qs.exclude(pk=self.pk)
+            if existing_qs.count() >= credits:
+                raise ValidationError(
+                    "Weekly credits limit reached for this subject"
+                    + ("/section" if self.section_id else "")
+                )
+
+        # Prevent scheduling same subject more than once per section/day (or course/day when no section),
         # except when filling an ExtraClassAvailability slot (make-up/extra class).
         if not extra_slot_exists:
-            if TimetableEntry.objects.filter(
+            per_day_qs = TimetableEntry.objects.filter(
                 session_id=self.session_id,
                 day=self.day,
-                course_id=self.course_id,
                 subject_id=self.subject_id,
-            ).exclude(pk=self.pk).exists():
-                raise ValidationError("Subject already scheduled for this course on the selected day")
+            )
+            if self.section_id:
+                per_day_qs = per_day_qs.filter(section_id=self.section_id)
+            else:
+                per_day_qs = per_day_qs.filter(course_id=self.course_id, section__isnull=True)
+            if per_day_qs.exclude(pk=self.pk).exists():
+                raise ValidationError(
+                    "Subject already scheduled for this section on the selected day"
+                    if self.section_id
+                    else "Subject already scheduled for this course on the selected day"
+                )
 
-        # Prevent conflicts across spanned periods for staff, room, and course
-        for p in range(int(self.period_number), end_period + 1):
-            if TimetableEntry.objects.filter(
-                session_id=self.session_id,
-                day=self.day,
-                period_number=p,
-                staff_id=self.staff_id,
-            ).exclude(pk=self.pk).exists():
-                raise ValidationError("Teacher has another class in the selected time range")
+        # Prevent conflicts across spanned periods for staff, room, and section (or course when no section)
+            for p in range(int(self.period_number), end_period + 1):
+                if TimetableEntry.objects.filter(
+                    session_id=self.session_id,
+                    day=self.day,
+                    period_number=p,
+                    staff_id=self.staff_id,
+                ).exclude(pk=self.pk).exists():
+                    raise ValidationError(
+                        "Teacher has another class in the selected time range. "
+                        + self._suggest_alternatives_message()
+                    )
 
-            if TimetableEntry.objects.filter(
-                session_id=self.session_id,
-                day=self.day,
-                period_number=p,
-                room_id=self.room_id,
-            ).exclude(pk=self.pk).exists():
-                raise ValidationError("Room is occupied in the selected time range")
+                if TimetableEntry.objects.filter(
+                    session_id=self.session_id,
+                    day=self.day,
+                    period_number=p,
+                    room_id=self.room_id,
+                ).exclude(pk=self.pk).exists():
+                    raise ValidationError(
+                        "Room is occupied in the selected time range. "
+                        + self._suggest_alternatives_message()
+                    )
 
-            if TimetableEntry.objects.filter(
-                session_id=self.session_id,
-                day=self.day,
-                period_number=p,
-                course_id=self.course_id,
-            ).exclude(pk=self.pk).exists():
-                raise ValidationError("Course already has another class in the selected time range")
+                section_or_course_qs = TimetableEntry.objects.filter(
+                    session_id=self.session_id,
+                    day=self.day,
+                    period_number=p,
+                )
+                if self.section_id:
+                    section_or_course_qs = section_or_course_qs.filter(section_id=self.section_id)
+                else:
+                    section_or_course_qs = section_or_course_qs.filter(course_id=self.course_id, section__isnull=True)
+                if section_or_course_qs.exclude(pk=self.pk).exists():
+                    raise ValidationError(
+                        (
+                            "Section already has another class in the selected time range. "
+                            if self.section_id
+                            else "Course already has another class in the selected time range. "
+                        )
+                        + self._suggest_alternatives_message()
+                    )
 
         # No consecutive classes for the same subject (ensure a gap)
         # Disallow immediately adjacent periods before or after this entry's spanned range
@@ -375,29 +570,22 @@ class TimetableEntry(models.Model):
         if adjacent_periods:
             # Skip adjacency restriction when filling an ExtraClassAvailability slot
             if not extra_slot_exists:
-                if TimetableEntry.objects.filter(
+                adjacent_qs = TimetableEntry.objects.filter(
                     session_id=self.session_id,
                     day=self.day,
-                    course_id=self.course_id,
                     subject_id=self.subject_id,
                     period_number__in=adjacent_periods,
-                ).exclude(pk=self.pk).exists():
+                )
+                if self.section_id:
+                    adjacent_qs = adjacent_qs.filter(section_id=self.section_id)
+                else:
+                    adjacent_qs = adjacent_qs.filter(course_id=self.course_id, section__isnull=True)
+                if adjacent_qs.exclude(pk=self.pk).exists():
                     raise ValidationError("No consecutive periods allowed for the same subject")
 
-        # Weekly credit limit: sum of durations for this subject in the session
-        # Weekly credit limit: keep for regular scheduling, but allow overage when
-        # filling ExtraClassAvailability (admin/HOD may later review totals).
-        credits = getattr(self.subject, "credits", 0) or 0
-        if credits > 0 and not extra_slot_exists:
-            existing_entries = TimetableEntry.objects.filter(
-                session_id=self.session_id,
-                subject_id=self.subject_id,
-            ).exclude(pk=self.pk)
-            existing_total = sum(int(e.duration_periods) for e in existing_entries)
-            if existing_total + int(self.duration_periods) > credits:
-                raise ValidationError(
-                    f"Weekly limit exceeded: {existing_total + int(self.duration_periods)} > allowed {credits} for {self.subject.name}"
-                )
+        # Weekly credits policy: enforce based on class count (not duration)
+        # This aligns with the requirement "3 credits => 3 classes per week".
+        # A separate cap above already blocks any attempt beyond credits.
 
 class ExtraClassSchedule(models.Model):
     STATUS_CHOICES = [
@@ -434,7 +622,7 @@ class ExtraClassSchedule(models.Model):
         # Ensure subject belongs to staff/course
         if self.subject.staff_id != self.staff_id:
             raise ValidationError("Subject is not taught by the selected staff")
-        if self.subject.course_id != self.course_id:
+        if not self.subject.courses.filter(id=self.course_id).exists():
             raise ValidationError("Subject does not belong to the selected course")
 
         # Disallow scheduling during staff unavailability (weekly pattern check)
