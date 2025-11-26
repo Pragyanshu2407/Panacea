@@ -73,6 +73,51 @@
           </div>
         </div>
       </div>
+      <div class="col-md-12 mt-3">
+        <div class="card card-dark">
+          <div class="card-header"><h3 class="card-title">Student Leave Requests</h3></div>
+          <div class="card-body">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Date</th>
+                  <th>Message</th>
+                  <th>Status</th>
+                  <th>Attachment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in leaves %}
+                <tr>
+                  <td>{{ l.student }}</td>
+                  <td>{{ l.date }}</td>
+                  <td>{{ l.message }}</td>
+                  <td>
+                    {% if l.status == 0 %}
+                      <span class="badge badge-warning">Pending</span>
+                    {% elif l.status == 1 %}
+                      <span class="badge badge-success">Accepted</span>
+                    {% else %}
+                      <span class="badge badge-danger">Rejected</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if l.attachment %}
+                      <a href="{{ l.attachment.url }}" target="_blank" class="btn btn-sm btn-secondary">View File</a>
+                    {% else %}
+                      <span class="text-muted">None</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No leave requests.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </section>

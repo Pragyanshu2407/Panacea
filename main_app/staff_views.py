@@ -349,10 +349,12 @@ def proctor_dashboard(request):
     assignments = ProctorAssignment.objects.filter(proctor=staff, active=True).select_related("student")
     students = [a.student for a in assignments]
     fees = FeePayment.objects.filter(student__in=students).select_related("student", "session")
+    leaves = LeaveReportStudent.objects.filter(student__in=students).select_related("student").order_by("-created_at")
     context = {
         "page_title": "Proctor Dashboard",
         "assignments": assignments,
         "fees": fees,
+        "leaves": leaves,
     }
     return render(request, "staff_template/proctor_dashboard.html", context)
 
@@ -641,19 +643,33 @@ def staff_add_result(request):
         try:
             student_id = request.POST.get('student_list')
             subject_id = request.POST.get('subject')
-            test = request.POST.get('test')
-            exam = request.POST.get('exam')
+            test1 = request.POST.get('test1')
+            test2 = request.POST.get('test2')
+            quiz = request.POST.get('quiz')
+            experiential = request.POST.get('experiential')
+            see = request.POST.get('see')
             student = get_object_or_404(Student, id=student_id)
             subject = get_object_or_404(Subject, id=subject_id)
             try:
                 data = StudentResult.objects.get(
                     student=student, subject=subject)
-                data.exam = exam
-                data.test = test
+                data.test1 = float(test1 or 0)
+                data.test2 = float(test2 or 0)
+                data.quiz = float(quiz or 0)
+                data.experiential = float(experiential or 0)
+                data.see = float(see or 0)
                 data.save()
                 messages.success(request, "Scores Updated")
             except:
-                result = StudentResult(student=student, subject=subject, test=test, exam=exam)
+                result = StudentResult(
+                    student=student,
+                    subject=subject,
+                    test1=float(test1 or 0),
+                    test2=float(test2 or 0),
+                    quiz=float(quiz or 0),
+                    experiential=float(experiential or 0),
+                    see=float(see or 0)
+                )
                 result.save()
                 messages.success(request, "Scores Saved")
         except Exception as e:
@@ -670,8 +686,11 @@ def fetch_student_result(request):
         subject = get_object_or_404(Subject, id=subject_id)
         result = StudentResult.objects.get(student=student, subject=subject)
         result_data = {
-            'exam': result.exam,
-            'test': result.test
+            'test1': result.test1,
+            'test2': result.test2,
+            'quiz': result.quiz,
+            'experiential': result.experiential,
+            'see': result.see
         }
         return HttpResponse(json.dumps(result_data))
     except Exception as e:

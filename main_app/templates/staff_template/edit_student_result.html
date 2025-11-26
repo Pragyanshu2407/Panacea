@@ -55,11 +55,9 @@
    $("#id_student").change(function () {
     fetch_student_result();
                 });
-                $("#id_exam").hide()
-                $("#id_test").hide()
+                $("#id_test1, #id_test2, #id_quiz, #id_experiential, #id_see").hide()
                 $("#update_result").hide()
-                $('label[for="id_test"]').hide();
-                $('label[for="id_exam"]').hide();
+                $('label[for="id_test1"], label[for="id_test2"], label[for="id_quiz"], label[for="id_experiential"], label[for="id_see"]').hide();
         function fetchStudents(){
             var subject = $("#id_subject").val()
             var session = $("#id_session_year").val()
@@ -95,13 +93,10 @@
                function fetch_student_result(){
                 var student = $("#id_student").val()
                 var subject = $("#id_subject").val()
-                $("#id_test").val(null)
-                $("#id_exam").val(null)
-                $("#id_exam").hide()
+                $("#id_test1, #id_test2, #id_quiz, #id_experiential, #id_see").val(null)
                 $("#update_result").hide()
-                $("#id_test").hide()
-                $('label[for="id_test"]').hide();
-                $('label[for="id_exam"]').hide();
+                $("#id_test1, #id_test2, #id_quiz, #id_experiential, #id_see").hide()
+                $('label[for="id_test1"], label[for="id_test2"], label[for="id_quiz"], label[for="id_experiential"], label[for="id_see"]').hide();
                 if (student.length  == 0 || subject.length == 0 || student < 1 || subject < 1){
                     return false;
                 }
@@ -118,13 +113,14 @@
                     } else {
                         var json_data = JSON.parse(response)
                         
-                            $("#id_test").val(json_data['test'])
-                            $("#id_exam").val(json_data['exam'])
-                            $("#id_exam").show()
-                            $("#id_test").show()
+                            $("#id_test1").val(json_data['test1'])
+                            $("#id_test2").val(json_data['test2'])
+                            $("#id_quiz").val(json_data['quiz'])
+                            $("#id_experiential").val(json_data['experiential'])
+                            $("#id_see").val(json_data['see'])
+                            $("#id_test1, #id_test2, #id_quiz, #id_experiential, #id_see").show()
                             $("#update_result").show()
-                            $('label[for="id_test"]').show();
-                            $('label[for="id_exam"]').show();
+                            $('label[for="id_test1"], label[for="id_test2"], label[for="id_quiz"], label[for="id_experiential"], label[for="id_see"]').show();
 
                     }
                 }).fail(function (response) {

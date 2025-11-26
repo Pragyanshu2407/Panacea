@@ -224,7 +224,7 @@ class EditResultForm(FormSettings):
 
     class Meta:
         model = StudentResult
-        fields = ['session_year', 'subject', 'student', 'test', 'exam']
+        fields = ['session_year', 'subject', 'student', 'test1', 'test2', 'quiz', 'experiential', 'see']
 
 #todos
 # class TodoForm(forms.ModelForm):

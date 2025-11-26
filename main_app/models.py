@@ -225,8 +225,11 @@ class NotificationStudent(models.Model):
 class StudentResult(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    test = models.FloatField(default=0)
-    exam = models.FloatField(default=0)
+    test1 = models.FloatField(default=0)
+    test2 = models.FloatField(default=0)
+    quiz = models.FloatField(default=0)
+    experiential = models.FloatField(default=0)
+    see = models.FloatField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
