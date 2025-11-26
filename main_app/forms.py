@@ -180,7 +180,7 @@ class LeaveReportStudentForm(FormSettings):
 
     class Meta:
         model = LeaveReportStudent
-        fields = ['date', 'message']
+        fields = ['date', 'message', 'attachment']
         widgets = {
             'date': DateInput(attrs={'type': 'date'}),
         }
@@ -468,7 +468,7 @@ class NoteUploadForm(forms.ModelForm):
 class MCQTestForm(forms.ModelForm):
     class Meta:
         model = models.MCQTest
-        fields = ["title", "subject", "is_active"]
+        fields = ["title", "subject", "is_active", "scheduled_at"]
 
     def __init__(self, *args, staff=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -477,6 +477,12 @@ class MCQTestForm(forms.ModelForm):
         for field in self.fields.values():
             css = field.widget.attrs.get("class", "")
             field.widget.attrs["class"] = (css + " form-control").strip()
+        # Use a native datetime picker for scheduled_at
+        if "scheduled_at" in self.fields:
+            self.fields["scheduled_at"].widget = forms.DateTimeInput(attrs={
+                "type": "datetime-local",
+                "class": "form-control",
+            })
 
 
 # MCQ Question + options form (single question at a time)

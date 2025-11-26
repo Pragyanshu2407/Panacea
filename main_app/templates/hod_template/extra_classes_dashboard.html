@@ -18,6 +18,13 @@
                 <option value="scheduled" {% if status == 'scheduled' %}selected{% endif %}>Scheduled</option>
                 <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
               </select>
+              <label class="mr-2">Session</label>
+              <select name="session_id" class="form-control mr-2">
+                <option value="" {% if not selected_session_id %}selected{% endif %}>All</option>
+                {% for s in sessions %}
+                  <option value="{{ s.id }}" {% if selected_session_id|default:'' == s.id|stringformat:'s' %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
               <button class="btn btn-dark" type="submit">Filter</button>
             </form>
           </div>

@@ -39,6 +39,7 @@
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Reviewed By</th>
+                  <th>Message</th>
                   <th>Receipt</th>
                 </tr>
               </thead>
@@ -57,6 +58,7 @@
                     {% endif %}
                   </td>
                   <td>{% if f.reviewed_by %}{{ f.reviewed_by }}{% else %}-{% endif %}</td>
+                  <td>{% if f.notes %}{{ f.notes }}{% else %}-{% endif %}</td>
                   <td><a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary">View</a></td>
                 </tr>
                 {% empty %}

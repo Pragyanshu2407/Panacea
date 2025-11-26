@@ -5,6 +5,8 @@
   const password = document.querySelector('#login-password');
   const btn = document.querySelector('#login-submit');
   const card = document.querySelector('#login-card');
+  const toggle = document.querySelector('#toggle-password');
+  const starsContainer = document.querySelector('.stars');
   const emailMsg = document.querySelector('#email-msg');
   const passMsg = document.querySelector('#pass-msg');
 
@@ -67,6 +69,42 @@
         setTimeout(() => card.classList.remove('success-glow'), 600);
       }
     });
+  }
+
+  if (toggle && password) {
+    toggle.addEventListener('click', () => {
+      const isText = password.getAttribute('type') === 'text';
+      password.setAttribute('type', isText ? 'password' : 'text');
+      toggle.setAttribute('aria-pressed', (!isText).toString());
+      const icon = toggle.querySelector('span');
+      if (icon) {
+        icon.classList.toggle('fa-eye', isText);
+        icon.classList.toggle('fa-eye-slash', !isText);
+      }
+      toggle.setAttribute('aria-label', isText ? 'Show password' : 'Hide password');
+      password.focus();
+    });
+  }
+
+  if (starsContainer && !supportsReducedMotion) {
+    const count = 50;
+    const minDur = 5;
+    const maxDur = 8;
+    const minMove = 20;
+    const maxMove = 50;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      const left = Math.random() * 100;
+      const bottom = Math.random() * 100;
+      const dur = (Math.random() * (maxDur - minDur) + minDur).toFixed(2) + 's';
+      const move = (Math.random() * (maxMove - minMove) + minMove).toFixed(0) + 'px';
+      s.style.left = left + 'vw';
+      s.style.bottom = bottom + 'px';
+      s.style.setProperty('--star-move', move);
+      s.style.animationDuration = dur + ', ' + dur;
+      starsContainer.appendChild(s);
+    }
   }
 
   // If server rendered an error alert, shake on load for feedback

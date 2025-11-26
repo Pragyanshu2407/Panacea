@@ -12,6 +12,7 @@ from django.views.generic import UpdateView
 from django.db.models import Q
 from django.db import transaction
 from django.utils import timezone
+from datetime import timedelta
 
 from .forms import *
 from .models import *
@@ -70,6 +71,36 @@ def admin_home(request):
         student_attendance_leave_list.append(leave+absent)
         student_name_list.append(student.admin.first_name)
 
+    # Notifications aggregates
+    now = timezone.now()
+    days = [now - timedelta(days=i) for i in range(6, -1, -1)]
+    notif_labels = [d.strftime("%b %d") for d in days]
+    staff_counts = [NotificationStaff.objects.filter(created_at__date=d.date()).count() for d in days]
+    student_counts = [NotificationStudent.objects.filter(created_at__date=d.date()).count() for d in days]
+    notif_counts = [staff_counts[i] + student_counts[i] for i in range(len(days))]
+    recent_staff = list(NotificationStaff.objects.all().order_by('-created_at')[:10])
+    recent_student = list(NotificationStudent.objects.all().order_by('-created_at')[:10])
+    recent_combined = sorted(
+        [{'type': 'Staff', 'message': n.message, 'created_at': n.created_at} for n in recent_staff] +
+        [{'type': 'Student', 'message': n.message, 'created_at': n.created_at} for n in recent_student],
+        key=lambda x: x['created_at'], reverse=True
+    )[:10]
+
+    # Additional charts: attendance trend (14 days), feedback trend (stacked), leave composition (30 days)
+    days14 = [timezone.now().date() - timedelta(days=i) for i in range(13, -1, -1)]
+    att_labels = [d.strftime("%b %d") for d in days14]
+    att_counts = [Attendance.objects.filter(date=d).count() for d in days14]
+
+    days14_dt = [timezone.now() - timedelta(days=i) for i in range(13, -1, -1)]
+    fb_labels = [d.strftime("%b %d") for d in days14_dt]
+    fb_student = [FeedbackStudent.objects.filter(created_at__date=d.date()).count() for d in days14_dt]
+    fb_staff = [FeedbackStaff.objects.filter(created_at__date=d.date()).count() for d in days14_dt]
+
+    days30_dt = [timezone.now() - timedelta(days=i) for i in range(29, -1, -1)]
+    leave_student_30 = LeaveReportStudent.objects.filter(created_at__date__in=[d.date() for d in days30_dt]).count()
+    leave_staff_30 = LeaveReportStaff.objects.filter(created_at__date__in=[d.date() for d in days30_dt]).count()
+    leave_comp_json = json.dumps({"student": leave_student_30, "staff": leave_staff_30})
+
     context = {
         'page_title': "Administrative Dashboard",
         'total_students': total_students,
@@ -84,6 +115,15 @@ def admin_home(request):
         "student_count_list_in_subject": student_count_list_in_subject,
         "student_count_list_in_course": student_count_list_in_course,
         "course_name_list": course_name_list,
+        "notif_labels": notif_labels,
+        "notif_counts": notif_counts,
+        "recent_notifications": recent_combined,
+        "att_labels": att_labels,
+        "att_counts": att_counts,
+        "fb_labels": fb_labels,
+        "fb_student": fb_student,
+        "fb_staff": fb_staff,
+        "leave_comp_json": leave_comp_json,
 
     }
     return render(request, 'hod_template/home_content.html', context)
@@ -746,6 +786,9 @@ def manage_timetable(request):
             },
             "concurrency": concurrency_slots,
         }
+    from .models import Room
+    rooms = Room.objects.all().order_by("name")
+
     context = {
         "page_title": page_title,
         "room_form": room_form,
@@ -753,6 +796,7 @@ def manage_timetable(request):
         "entries": entries,
         "sessions": sessions,
         "audit": audit,
+        "rooms": rooms,
     }
     return render(request, "hod_template/manage_timetable.html", context)
 
@@ -800,9 +844,16 @@ def update_extra_request_status(request, request_id: int):
 def extra_classes_dashboard(request):
     page_title = "Extra Classes Dashboard"
     status = request.GET.get("status")
+    session_id = request.GET.get("session_id")
+
     schedules = ExtraClassSchedule.objects.select_related("staff", "subject", "course").order_by("-start_datetime")
     if status in {"requested", "approved", "rejected", "scheduled", "cancelled"}:
         schedules = schedules.filter(status=status)
+    if session_id:
+        try:
+            schedules = schedules.filter(session_id=int(session_id))
+        except ValueError:
+            pass
 
     # Aggregate unavailability counts per staff for display/color coding
     unavailability = StaffUnavailability.objects.values("staff_id").annotate(count=models.Count("id"))
@@ -816,6 +867,8 @@ def extra_classes_dashboard(request):
         "schedules": schedules,
         "status": status or "all",
         "unavail_map": unavail_map,
+        "sessions": Session.objects.all(),
+        "selected_session_id": session_id or "",
     }
     return render(request, "hod_template/extra_classes_dashboard.html", context)
 
@@ -853,6 +906,89 @@ def view_staff_unavailability(request):
         },
     }
     return render(request, "hod_template/staff_unavailability.html", context)
+
+
+def admin_reset_maintenance(request):
+    """Admin tool to reset teacher unavailability and extra classes data.
+    Supports full reset or by selected session.
+    """
+    page_title = "Reset Unavailability & Extra Classes"
+    session_id = request.GET.get("session_id") or request.POST.get("session_id")
+    selected_session = None
+    if session_id:
+        try:
+            selected_session = Session.objects.get(id=session_id)
+        except Session.DoesNotExist:
+            selected_session = None
+
+    # Counts for display
+    def count_qs(qs):
+        return qs.count()
+
+    unavail_qs = StaffUnavailability.objects.all()
+    extra_slots_qs = ExtraClassAvailability.objects.all()
+    extra_requests_qs = ExtraClassRequest.objects.all()
+    extra_schedules_qs = ExtraClassSchedule.objects.all()
+    if selected_session:
+        unavail_qs = unavail_qs.filter(session=selected_session)
+        extra_slots_qs = extra_slots_qs.filter(session=selected_session)
+        extra_requests_qs = extra_requests_qs.filter(session=selected_session)
+        extra_schedules_qs = extra_schedules_qs.filter(session=selected_session)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            with transaction.atomic():
+                if action == "reset_unavailability":
+                    deleted, _ = unavail_qs.delete()
+                    messages.success(request, f"Reset {deleted} unavailability records" + (f" for session {selected_session}" if selected_session else ""))
+                elif action == "reset_extra_slots":
+                    deleted, _ = extra_slots_qs.delete()
+                    messages.success(request, f"Reset {deleted} extra slots" + (f" for session {selected_session}" if selected_session else ""))
+                elif action == "reset_extra_requests":
+                    deleted, _ = extra_requests_qs.delete()
+                    messages.success(request, f"Reset {deleted} extra class requests" + (f" for session {selected_session}" if selected_session else ""))
+                elif action == "reset_extra_schedules":
+                    deleted, _ = extra_schedules_qs.delete()
+                    messages.success(request, f"Reset {deleted} extra class schedules" + (f" for session {selected_session}" if selected_session else ""))
+                elif action == "reset_all":
+                    d1, _ = unavail_qs.delete()
+                    d2, _ = extra_slots_qs.delete()
+                    d3, _ = extra_requests_qs.delete()
+                    d4, _ = extra_schedules_qs.delete()
+                    messages.success(request, (
+                        f"Reset all: {d1} unavailability, {d2} extra slots, {d3} requests, {d4} schedules"
+                        + (f" for session {selected_session}" if selected_session else "")
+                    ))
+                else:
+                    messages.error(request, "Invalid action")
+                    return redirect(reverse("admin_reset_maintenance"))
+
+                # Audit
+                try:
+                    TimetableAuditLog.objects.create(
+                        actor=request.user,
+                        action="admin_reset",
+                        details=f"action={action} session={selected_session or 'all'}",
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            messages.error(request, f"Could not perform reset: {e}")
+        return redirect(reverse("admin_reset_maintenance") + (f"?session_id={session_id}" if session_id else ""))
+
+    context = {
+        "page_title": page_title,
+        "sessions": Session.objects.all(),
+        "selected_session": selected_session,
+        "counts": {
+            "unavailability": count_qs(unavail_qs),
+            "extra_slots": count_qs(extra_slots_qs),
+            "extra_requests": count_qs(extra_requests_qs),
+            "extra_schedules": count_qs(extra_schedules_qs),
+        },
+    }
+    return render(request, "hod_template/admin_reset.html", context)
 
 
 def admin_schedule_extra_class(request):

@@ -24,6 +24,7 @@
                                 <th>#</th>
                                 <th>Title</th>
                                 <th>Subject</th>
+                                <th>Scheduled At</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -33,10 +34,19 @@
                                 <td>{{ forloop.counter }}</td>
                                 <td>{{ t.title }}</td>
                                 <td>{{ t.subject.name }}</td>
+                                <td>{% if t.scheduled_at %}{{ t.scheduled_at }}{% else %}-{% endif %}</td>
                                 <td>{% if t.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}</td>
                                 <td>{{ t.created_at }}</td>
                                 <td>
                                     <a href="{% url 'staff_add_question' t.id %}" class="btn btn-sm btn-dark">Add Questions</a>
+                                    <form action="{% url 'staff_toggle_test_active' t.id %}" method="post" style="display:inline-block;">
+                                        {% csrf_token %}
+                                        {% if t.is_active %}
+                                        <button type="submit" class="btn btn-sm btn-secondary" title="Disable Quiz">Disable</button>
+                                        {% else %}
+                                        <button type="submit" class="btn btn-sm btn-success" title="Enable Quiz">Enable</button>
+                                        {% endif %}
+                                    </form>
                                 </td>
                             </tr>
                             {% empty %}

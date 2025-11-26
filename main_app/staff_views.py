@@ -8,6 +8,7 @@ from django.urls import reverse
 import logging
 from django.db import transaction
 from django.utils import timezone
+from datetime import timedelta
 from django.views.decorators.csrf import csrf_exempt
 
 from .forms import *
@@ -32,6 +33,12 @@ def staff_home(request):
         attendance_count = Attendance.objects.filter(subject=subject).count()
         subject_list.append(subject.name)
         attendance_list.append(attendance_count)
+    now = timezone.now()
+    days = [now - timedelta(days=i) for i in range(6, -1, -1)]
+    notif_labels = [d.strftime("%b %d") for d in days]
+    staff_notif_counts = [NotificationStaff.objects.filter(staff=staff, created_at__date=d.date()).count() for d in days]
+    recent_notifications = NotificationStaff.objects.filter(staff=staff).order_by('-created_at')[:10]
+
     context = {
         'page_title': 'Staff Panel - ' + str(staff.admin.first_name) + ' ' + str(staff.admin.last_name[0]) + '' + ' (' + str(staff.course) + ')',
         'total_students': total_students,
@@ -39,7 +46,10 @@ def staff_home(request):
         'total_leave': total_leave,
         'total_subject': total_subject,
         'subject_list': subject_list,
-        'attendance_list': attendance_list
+        'attendance_list': attendance_list,
+        'notif_labels': notif_labels,
+        'notif_counts': staff_notif_counts,
+        'recent_notifications': recent_notifications,
     }
     return render(request, 'staff_template/home_content.html', context)
 
@@ -265,17 +275,53 @@ def staff_claim_extra_slot(request, slot_id: int):
             entry=entry,
             details=f"Scheduled extra {subject} on {slot.day} P{slot.period_number}"
         )
-        # Notify students in the course about the scheduled extra class
+        # Notify about claim due to teacher unavailability
         try:
+            orig_staff = None
+            if slot.created_from_id:
+                try:
+                    orig_staff = slot.created_from.staff
+                except Exception:
+                    orig_staff = None
+
+            # Notify students in the course
             students = Student.objects.filter(course=slot.course)
-            msg = (
-                f"Extra class scheduled: {subject.name} by {staff.admin.get_full_name()} "
+            base_msg = (
+                f"Extra class claimed: {subject.name} by {staff.admin.get_full_name()} "
                 f"on {slot.day} P{slot.period_number} ({TimetableEntry.SLOT_LABELS.get(slot.period_number, '')})"
             )
+            if orig_staff:
+                student_msg = base_msg + f" due to unavailability of {orig_staff.admin.get_full_name()}"
+            else:
+                student_msg = base_msg + " due to teacher unavailability"
             for stu in students:
-                NotificationStudent.objects.create(student=stu, message=msg)
+                NotificationStudent.objects.create(student=stu, message=student_msg)
+
+            # Notify the originally unavailable teacher (if known)
+            if orig_staff:
+                NotificationStaff.objects.create(
+                    staff=orig_staff,
+                    message=(
+                        f"Your unavailable slot {slot.day} P{slot.period_number} "
+                        f"has been claimed by {staff.admin.get_full_name()} for {subject.name}."
+                    ),
+                )
+
+            # Notify other staff in the course
+            try:
+                others = Staff.objects.filter(course=slot.course).exclude(id__in=[staff.id, getattr(orig_staff, 'id', None)])
+                staff_msg = (
+                    f"Extra slot claimed for {slot.course.name}: {subject.name} by {staff.admin.get_full_name()} "
+                    f"on {slot.day} P{slot.period_number}"
+                )
+                if orig_staff:
+                    staff_msg += f" (covering {orig_staff.admin.get_full_name()})"
+                for s in others:
+                    NotificationStaff.objects.create(staff=s, message=staff_msg)
+            except Exception:
+                pass
         except Exception:
-            # Non-fatal
+            # Non-fatal: continue even if notifications fail
             pass
         messages.success(request, "Extra slot claimed and scheduled.")
     except Exception as e:
@@ -320,6 +366,9 @@ def staff_review_fee(request, fee_id: int):
         return redirect(reverse("proctor_dashboard"))
     action = request.POST.get("action")
     notes = request.POST.get("notes", "")
+    if not notes or not notes.strip():
+        messages.error(request, "Message is required")
+        return redirect(reverse("proctor_dashboard"))
     if action not in ("approve", "reject"):
         messages.error(request, "Invalid action")
         return redirect(reverse("proctor_dashboard"))
@@ -723,6 +772,16 @@ def staff_manage_tests(request):
         else:
             messages.error(request, "Please correct the errors in the form")
     return render(request, "staff_template/staff_manage_tests.html", context)
+
+
+def staff_toggle_test_active(request, test_id: int):
+    staff = get_object_or_404(Staff, admin=request.user)
+    test = get_object_or_404(MCQTest, id=test_id, staff=staff)
+    if request.method == "POST":
+        test.is_active = not test.is_active
+        test.save(update_fields=["is_active"])
+        messages.success(request, f"Test '{test.title}' is now {'Active' if test.is_active else 'Inactive'}.")
+    return redirect(reverse("staff_manage_tests"))
 
 
 def staff_add_question(request, test_id: int):

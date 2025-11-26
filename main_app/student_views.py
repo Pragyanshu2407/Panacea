@@ -12,6 +12,9 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .forms import *
 from .models import *
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Q
 
 
 def student_home(request):
@@ -38,6 +41,12 @@ def student_home(request):
         subject_name.append(subject.name)
         data_present.append(present_count)
         data_absent.append(absent_count)
+    now = timezone.now()
+    days = [now - timedelta(days=i) for i in range(6, -1, -1)]
+    notif_labels = [d.strftime("%b %d") for d in days]
+    notif_counts = [NotificationStudent.objects.filter(student=student, created_at__date=d.date()).count() for d in days]
+    recent_notifications = NotificationStudent.objects.filter(student=student).order_by('-created_at')[:10]
+
     context = {
         'total_attendance': total_attendance,
         'percent_present': percent_present,
@@ -47,7 +56,10 @@ def student_home(request):
         'data_present': data_present,
         'data_absent': data_absent,
         'data_name': subject_name,
-        'page_title': 'Student Homepage'
+        'page_title': 'Student Homepage',
+        'notif_labels': notif_labels,
+        'notif_counts': notif_counts,
+        'recent_notifications': recent_notifications,
 
     }
     return render(request, 'student_template/home_content.html', context)
@@ -162,7 +174,7 @@ def student_view_attendance(request):
 
 
 def student_apply_leave(request):
-    form = LeaveReportStudentForm(request.POST or None)
+    form = LeaveReportStudentForm(request.POST or None, request.FILES or None)
     student = get_object_or_404(Student, admin_id=request.user.id)
     context = {
         'form': form,
@@ -312,7 +324,13 @@ def student_view_notes(request):
 
 def student_available_tests(request):
     student = get_object_or_404(Student, admin=request.user)
-    tests = MCQTest.objects.filter(subject__courses=student.course, is_active=True).select_related("subject", "staff")
+    now = timezone.now()
+    tests = (
+        MCQTest.objects
+        .filter(subject__courses=student.course, is_active=True)
+        .filter(Q(scheduled_at__isnull=True) | Q(scheduled_at__lte=now))
+        .select_related("subject", "staff")
+    )
     context = {
         "page_title": "Available MCQ Tests",
         "tests": tests.order_by("-created_at"),
@@ -323,6 +341,11 @@ def student_available_tests(request):
 def student_take_test(request, test_id: int):
     student = get_object_or_404(Student, admin=request.user)
     test = get_object_or_404(MCQTest, id=test_id, subject__courses=student.course, is_active=True)
+    # Enforce schedule: block access before scheduled time
+    now = timezone.now()
+    if test.scheduled_at and test.scheduled_at > now and request.method != "POST":
+        messages.info(request, "This test will be available at %s" % test.scheduled_at)
+        return redirect(reverse("student_available_tests"))
     questions = MCQQuestion.objects.filter(test=test).prefetch_related("options")
     # Check if already submitted
     existing = MCQSubmission.objects.filter(test=test, student=student).first()

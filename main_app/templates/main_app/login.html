@@ -26,9 +26,10 @@
 </head>
 
 <body class="hold-transition login-page login-modern">
+    <div class="stars" aria-hidden="true"></div>
     <div class="login-box">
         <div class="brand">
-            <img src="{% static 'dist/img/virusx.png' %}" alt="Site Logo" />
+            <img src="{% static 'dist/img/virusx.png' %}" alt="Site Logo" loading="lazy" />
             <div class="brand-title">College Portal</div>
         </div>
         <!-- /.login-logo -->
@@ -49,7 +50,7 @@
                 <form action="doLogin/" method="post" id="login-form" aria-label="Login form" novalidate>
                     {% csrf_token %}
                     <div class="input-group mb-3">
-                        <input required type="email"  name='email' id="login-email" class="form-control login-input" placeholder="Email" aria-label="Email address" aria-describedby="email-msg" aria-invalid="false">
+                        <input required type="email"  name='email' id="login-email" class="form-control login-input" placeholder="Enter your college email" aria-label="Email address" aria-describedby="email-msg" aria-invalid="false">
                         <div class="input-group-append">
                             <div class="input-group-text">
                                 <span class="fas fa-envelope"></span>
@@ -61,8 +62,13 @@
                         <input required type="password" name='password' id="login-password" class="form-control login-input" placeholder="Password" aria-label="Password" aria-describedby="pass-msg" aria-invalid="false">
                         <div class="input-group-append">
                             <div class="input-group-text">
-                                <span class="fas fa-lock"></span>
+                                <span class="fas fa-lock" aria-hidden="true"></span>
                             </div>
+                        </div>
+                        <div class="input-group-append">
+                            <button type="button" class="input-group-text password-toggle" id="toggle-password" aria-label="Show password" aria-pressed="false">
+                                <span class="fas fa-eye" aria-hidden="true"></span>
+                            </button>
                         </div>
                     </div>
                     <div id="pass-msg" class="validation-msg" role="status" aria-live="polite"></div>
@@ -91,7 +97,7 @@
 
 
                 <p class="mb-1">
-                    <a href="{% url 'password_reset' %}">Forgot Password?</a>
+                    <a class="forgot-link" href="{% url 'password_reset' %}">Forgot Password?</a>
                 </p>
 
             </div>

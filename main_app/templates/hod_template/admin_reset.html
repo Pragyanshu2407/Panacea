@@ -1,0 +1,71 @@
+{% extends 'main_app/base.html' %}
+{% block content %}
+<section class="content">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <div class="card card-danger">
+          <div class="card-header"><h3 class="card-title">{{ page_title }}</h3></div>
+          <div class="card-body">
+            <form method="get" class="form-inline mb-3">
+              <label class="mr-2">Session</label>
+              <select name="session_id" class="form-control mr-2">
+                <option value="">All Sessions</option>
+                {% for s in sessions %}
+                  <option value="{{ s.id }}" {% if selected_session and selected_session.id == s.id %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-secondary" type="submit">Filter</button>
+            </form>
+
+            <div class="mb-3">
+              <span class="mr-3">Unavailability: <strong>{{ counts.unavailability }}</strong></span>
+              <span class="mr-3">Extra Slots: <strong>{{ counts.extra_slots }}</strong></span>
+              <span class="mr-3">Extra Requests: <strong>{{ counts.extra_requests }}</strong></span>
+              <span class="mr-3">Extra Schedules: <strong>{{ counts.extra_schedules }}</strong></span>
+            </div>
+
+            <div class="alert alert-warning">Use with caution. These actions permanently delete the selected records.</div>
+
+            <div class="btn-group" role="group" aria-label="Resets">
+              <form method="post" class="mr-2 d-inline">
+                {% csrf_token %}
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}" />{% endif %}
+                <input type="hidden" name="action" value="reset_unavailability" />
+                <button type="submit" class="btn btn-outline-danger">Reset Unavailability</button>
+              </form>
+              <form method="post" class="mr-2 d-inline">
+                {% csrf_token %}
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}" />{% endif %}
+                <input type="hidden" name="action" value="reset_extra_slots" />
+                <button type="submit" class="btn btn-outline-danger">Reset Extra Slots</button>
+              </form>
+              <form method="post" class="mr-2 d-inline">
+                {% csrf_token %}
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}" />{% endif %}
+                <input type="hidden" name="action" value="reset_extra_requests" />
+                <button type="submit" class="btn btn-outline-danger">Reset Extra Requests</button>
+              </form>
+              <form method="post" class="mr-2 d-inline">
+                {% csrf_token %}
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}" />{% endif %}
+                <input type="hidden" name="action" value="reset_extra_schedules" />
+                <button type="submit" class="btn btn-outline-danger">Reset Extra Schedules</button>
+              </form>
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}" />{% endif %}
+                <input type="hidden" name="action" value="reset_all" />
+                <button type="submit" class="btn btn-danger">Reset ALL</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% if messages %}
+    <div class="container-fluid mt-2">{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+  {% endif %}
+</section>
+{% endblock %}

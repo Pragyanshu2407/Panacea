@@ -55,15 +55,11 @@
                     {% if f.status == 'pending' %}
                       <form method="post" action="{% url 'staff_review_fee' f.id %}" class="d-inline">
                         {% csrf_token %}
-                        <input type="hidden" name="action" value="approve" />
-                        <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                        <input type="text" name="notes" class="form-control form-control-sm d-inline-block" style="width: 220px" placeholder="Message to student" required />
+                        <button class="btn btn-sm btn-success ml-2" type="submit" name="action" value="approve">Approve</button>
+                        <button class="btn btn-sm btn-danger ml-1" type="submit" name="action" value="reject">Reject</button>
+                        <a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary ml-2">View Receipt</a>
                       </form>
-                      <form method="post" action="{% url 'staff_review_fee' f.id %}" class="d-inline ml-2">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="reject" />
-                        <button class="btn btn-sm btn-danger" type="submit">Reject</button>
-                      </form>
-                      <a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary ml-2">View Receipt</a>
                     {% else %}
                       <a href="{{ f.receipt.url }}" target="_blank" class="btn btn-sm btn-secondary">View Receipt</a>
                     {% endif %}

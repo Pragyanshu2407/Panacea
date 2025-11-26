@@ -109,6 +109,43 @@
             </div>
                 </div>
             <!-- right col -->
+            <div class="col-md-6 mt-3">
+                <div class="card card-info">
+                  <div class="card-header">
+                    <h3 class="card-title">Notifications (7 days)</h3>
+                    <div class="card-tools">
+                      <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                      <button type="button" class="btn btn-tool" data-card-widget="remove"><i class="fas fa-times"></i></button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <canvas id="staffNotificationsChart" style="min-height: 250px; height: 250px; max-height: 250px; max-width: 100%;"></canvas>
+                  </div>
+                </div>
+            </div>
+            <div class="col-md-6 mt-3">
+                <div class="card card-info">
+                  <div class="card-header">
+                    <h3 class="card-title">Recent Notifications</h3>
+                    <div class="card-tools">
+                      <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
+                      <button type="button" class="btn btn-tool" data-card-widget="remove"><i class="fas fa-times"></i></button>
+                    </div>
+                  </div>
+                  <div class="card-body" style="max-height:280px; overflow:auto;">
+                    <ul class="list-group list-group-flush">
+                      {% for n in recent_notifications %}
+                      <li class="list-group-item">
+                        {{ n.message }}
+                        <span class="float-right text-muted">{{ n.created_at }}</span>
+                      </li>
+                      {% empty %}
+                      <li class="list-group-item">No notifications.</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+            </div>
         </div>
         <!-- /.row (main row) -->
     </div><!-- /.container-fluid -->
@@ -185,8 +222,27 @@
           data: barChartData,
           options: stackedBarChartOptions
         })
-      })
 
+        var notifLabels = {{ notif_labels|safe }};
+        var notifCounts = {{ notif_counts|safe }};
+        var notifCtx = $('#staffNotificationsChart').get(0).getContext('2d');
+        new Chart(notifCtx, {
+          type: 'line',
+          data: {
+            labels: notifLabels,
+            datasets: [{
+              label: 'Notifications',
+              data: notifCounts,
+              borderColor: '#17A2B8',
+              backgroundColor: 'rgba(23,162,184,0.2)',
+              fill: true,
+              tension: 0.25
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      })
+  
     
   </script>
       <!-- The core Firebase JS SDK is always required and must be listed first -->

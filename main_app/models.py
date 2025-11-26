@@ -178,6 +178,7 @@ class LeaveReportStudent(models.Model):
     date = models.CharField(max_length=60)
     message = models.TextField()
     status = models.SmallIntegerField(default=0)
+    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -811,6 +812,8 @@ class MCQTest(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     staff = models.ForeignKey(Staff, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
+    # When set, the test becomes available to students at/after this time
+    scheduled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -903,9 +906,8 @@ class FeePayment(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["student", "session"], name="uniq_fee_by_student_session"),
-        ]
+        # Allow multiple fee submissions per student per session
+        constraints = []
 
     def __str__(self):
         return f"{self.student} - {self.session} ({self.status})"
