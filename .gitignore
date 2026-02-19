@@ -12,11 +12,12 @@ __pycache__/
 local_settings.py
 db.sqlite3
 
-# Environments
 .vscode
 .env
 .venv
+.venv310/
 env/
+env310/
 venv/
 ENV/
 env.bak/

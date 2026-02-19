@@ -92,15 +92,20 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.mysql',
-    #     'NAME': 'django',
-    #     'USER': os.environ.get('DB_USER'),
-    #     'PASSWORD': os.environ.get('DB_PASS'),
-    #     'HOST': '127.0.0.1',
-    #     'PORT': '3307'
-    # }
 }
+
+# Optional MongoDB Atlas configuration via Djongo if MONGODB_URI is provided
+MONGODB_URI = os.environ.get('MONGODB_URI')
+MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'cms')
+if MONGODB_URI:
+    DATABASES['default'] = {
+        'ENGINE': 'djongo',
+        'NAME': MONGODB_DB_NAME,
+        'ENFORCE_SCHEMA': False,
+        'CLIENT': {
+            'host': MONGODB_URI,
+        }
+    }
 
 
 # Password validation
@@ -165,5 +170,7 @@ EMAIL_USE_TLS = True
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-prod_db = dj_database_url.config(conn_max_age=500)
-DATABASES['default'].update(prod_db)
+# Only apply dj_database_url when not using MongoDB
+if not MONGODB_URI:
+    prod_db = dj_database_url.config(conn_max_age=500)
+    DATABASES['default'].update(prod_db)
